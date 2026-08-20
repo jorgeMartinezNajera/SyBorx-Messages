@@ -54,8 +54,7 @@ const els = {
   meName: $('#me-name'),
   meRole: $('#me-role'),
   themeToggle: $('#theme-toggle'),
-  profileMenu: $('#profile-menu'),
-  profileMenuList: $('#profile-menu-list'),
+  logoutBtn: $('#logout-btn'),
   viewSwitch: $('#view-switch'),
   segBtns: document.querySelectorAll('#view-switch .seg-btn'),
   listTitle: $('#list-title'),
@@ -402,26 +401,6 @@ function renderProfile() {
   els.meRole.textContent = ROLE_LABELS[u.globalRole] || u.globalRole;
 }
 
-function renderProfileMenu() {
-  els.profileMenuList.innerHTML = `
-    <button type="button" id="menu-account">
-      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      <span class="menu-role"><strong>Ver cuenta</strong></span>
-    </button>
-    <button type="button" id="menu-logout" class="danger">
-      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      <span class="menu-role"><strong>Cerrar sesión</strong></span>
-    </button>`;
-  els.profileMenuList.querySelector('#menu-account').addEventListener('click', () => {
-    els.profileMenu.classList.add('hidden');
-    openAccountModal();
-  });
-  els.profileMenuList.querySelector('#menu-logout').addEventListener('click', () => {
-    els.profileMenu.classList.add('hidden');
-    logout();
-  });
-}
-
 function canManageCommunity() {
   const role = state.community ? state.community.userRoleInCommunity : null;
   return role === 'COMMUNITY_OWNER' || role === 'COMMUNITY_ADMIN';
@@ -549,7 +528,8 @@ function renderHeader(chat) {
     els.membersBtn.classList.add('hidden');
   } else {
     const ch = state.channels.find(c => c.id === chat.id);
-    els.chatAvatar.textContent = esc(initials('#' + ch.name));
+    els.chatName.textContent = '# ' + ch.name;
+    els.chatAvatar.textContent = esc(initials(ch.name));
     els.chatAvatar.style.backgroundImage = '';
     els.chatAvatar.style.cssText = 'background:var(--accent-2);color:#fff;';
     const members = (ch.community._count && ch.community._count.members) || 0;
@@ -824,7 +804,6 @@ function closeChatIfNotInView() {
 // ---------- Render general ----------
 function renderAll() {
   renderProfile();
-  renderProfileMenu();
   syncView();
   if (state.activeChat) renderHeader(state.activeChat);
 }
@@ -855,16 +834,9 @@ function init() {
   els.loginForm.addEventListener('submit', e => { e.preventDefault(); doLogin(); });
   els.registerForm.addEventListener('submit', e => { e.preventDefault(); doRegister(); });
 
-  // Menú de perfil
-  els.profileOpen.addEventListener('click', e => {
-    e.stopPropagation();
-    els.profileMenu.classList.toggle('hidden');
-  });
-  document.addEventListener('click', e => {
-    if (!els.profileMenu.contains(e.target) && !els.profileOpen.contains(e.target)) {
-      els.profileMenu.classList.add('hidden');
-    }
-  });
+  // Perfil y sesión
+  els.profileOpen.addEventListener('click', () => openAccountModal());
+  els.logoutBtn.addEventListener('click', () => logout());
 
   // Switch Comunidad / Grupos
   els.segBtns.forEach(btn => btn.addEventListener('click', () => {

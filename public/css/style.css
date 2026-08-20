@@ -190,6 +190,25 @@ input, textarea, select { font-family: var(--font); }
 }
 .icon-btn:hover { background: var(--hover); color: var(--text); }
 
+/* ---------- Botón Cerrar sesión ---------- */
+.logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 11px;
+  border-radius: 14px;
+  background: var(--user-bubble);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: var(--glass-shadow);
+  transition: var(--transition);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.logout-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.logout-btn svg { flex-shrink: 0; }
+
 /* ---------- Switch Comunidad / Grupos ---------- */
 .seg {
   position: relative;
@@ -274,7 +293,7 @@ input, textarea, select { font-family: var(--font); }
   margin-top: 4px;
 }
 
-/* ---------- Menú desplegable (perfiles) ---------- */
+/* ---------- Menú desplegable (perfiles) — sólido y blanco ---------- */
 .menu {
   position: absolute;
   top: calc(100% + 8px);
@@ -282,14 +301,14 @@ input, textarea, select { font-family: var(--font); }
   border-radius: 18px;
   padding: 8px;
   z-index: 60;
-  background: var(--glass-strong);
-  border: 1px solid var(--glass-border);
-  box-shadow: 0 16px 44px rgba(0, 0, 0, .28);
+  background: #ffffff;
+  border: 1px solid rgba(27, 42, 74, .12);
+  box-shadow: 0 18px 46px rgba(27, 42, 74, .35);
   animation: pop .18s ease;
 }
 .menu-title {
   font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .8px; color: var(--text-muted);
+  letter-spacing: .8px; color: #5F6B84;
   padding: 6px 12px 6px;
 }
 .menu button {
@@ -298,24 +317,24 @@ input, textarea, select { font-family: var(--font); }
   padding: 11px 12px;
   border-radius: 12px;
   font-size: 13px;
-  color: var(--text);
+  color: #1B2A4A;
   transition: background var(--transition);
   text-align: left;
 }
-.menu button svg { color: var(--accent-2); flex-shrink: 0; }
-.menu button:hover { background: var(--chip); }
+.menu button svg { color: #2E4A7A; flex-shrink: 0; }
+.menu button:hover { background: rgba(27, 42, 74, .08); }
 .menu button.danger {
   margin-top: 4px;
-  border-top: 1px solid var(--glass-border);
+  border-top: 1px solid rgba(27, 42, 74, .12);
   border-radius: 0 0 12px 12px;
 }
-.menu button.danger svg { color: var(--danger); }
-.menu button.danger:hover { background: var(--danger); }
+.menu button.danger svg { color: #B3402F; }
+.menu button.danger:hover { background: #B3402F; }
 .menu button.danger:hover strong,
 .menu button.danger:hover svg { color: #fff; }
 .menu button.danger strong { color: inherit; }
 .menu button .menu-role { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.menu button .menu-role strong { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.menu button .menu-role strong { font-size: 13.5px; font-weight: 600; color: #1B2A4A; }
 @keyframes pop {
   from { opacity: 0; transform: scale(.94) translateY(-4px); }
   to { opacity: 1; transform: none; }
@@ -618,6 +637,9 @@ input, textarea, select { font-family: var(--font); }
 .form-field { margin-bottom: 14px; }
 .form-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
 .form-field input[type="text"],
+.form-field input[type="email"],
+.form-field input[type="password"],
+.form-field input[type="search"],
 .form-field select {
   width: 100%;
   padding: 11px 13px;
