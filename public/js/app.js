@@ -66,6 +66,8 @@ const els = {
   logoutBtn: $('#logout-btn'),
   viewSwitch: $('#view-switch'),
   segBtns: document.querySelectorAll('#view-switch .seg-btn'),
+  searchInput: $('#search-input'),
+  searchClear: $('#search-clear'),
   listTitle: $('#list-title'),
   newGroupBtn: $('#new-group-btn'),
   chatList: $('#chat-list'),
@@ -73,7 +75,9 @@ const els = {
   chatAvatar: $('#chat-avatar'),
   chatName: $('#chat-name'),
   chatSub: $('#chat-sub'),
+  sharedFilesBtn: $('#shared-files-btn'),
   membersBtn: $('#members-btn'),
+  deleteChatBtn: $('#delete-chat-btn'),
   emptyState: $('#empty-state'),
   emptyText: $('#empty-text'),
   messages: $('#messages'),
@@ -651,13 +655,42 @@ function canManageCommunity() {
 }
 
 function renderList() {
+  const query = els.searchInput ? els.searchInput.value.trim().toLowerCase() : '';
+  if (els.searchClear) {
+    els.searchClear.classList.toggle('hidden', !query);
+  }
+
   els.newGroupBtn.classList.toggle('hidden', !(state.view === 'groups' && canManageCommunity()));
-  els.listTitle.textContent = state.view === 'direct' ? 'Comunidad' : 'Grupos';
+  
+  if (state.view === 'direct') {
+    els.listTitle.textContent = query ? 'Resultados en Mensajes' : 'Mensajes Recientes';
+  } else if (state.view === 'groups') {
+    els.listTitle.textContent = query ? 'Resultados en Grupos' : 'Grupos y Canales';
+  } else {
+    els.listTitle.textContent = query ? 'Resultados en Directorio' : 'Directorio de Contactos';
+  }
 
   if (state.view === 'direct') {
     let peers = state.directory.filter(u => u.id !== state.user.id);
+    
+    // Si no hay búsqueda activa, solo mostrar las conversaciones con mensajes activos
+    if (!query) {
+      peers = peers.filter(p => {
+        const dm = state.directChats.find(d => d.recipient && d.recipient.id === p.id);
+        return dm && (dm.lastMessage || state.unreadCounts[p.id]);
+      });
+    } else {
+      peers = peers.filter(p =>
+        (p.displayName && p.displayName.toLowerCase().includes(query)) ||
+        (p.username && p.username.toLowerCase().includes(query)) ||
+        (p.email && p.email.toLowerCase().includes(query))
+      );
+    }
+
     if (!peers.length) {
-      els.chatList.innerHTML = '<div class="chat-empty">Aún no hay otros integrantes registrados.<br>Cuando alguien se registre aparecerá aquí.</div>';
+      els.chatList.innerHTML = query
+        ? `<div class="chat-empty">No se encontraron conversaciones con "${esc(query)}".<br>Prueba en la pestaña <strong>Directorio</strong>.</div>`
+        : '<div class="chat-empty">No tienes mensajes recientes.<br>Ve a la pestaña <strong>Directorio</strong> o usa la barra de búsqueda para contactar a un compañero.</div>';
       return;
     }
 
@@ -692,18 +725,26 @@ function renderList() {
           </span>
           <span class="chat-right-meta">
             <span class="chat-time">${time}</span>
-            ${unread > 0 ? `<span class="unread-badge">${unread}</span>` : ''}
+            ${unread > 0 ? `<span class="unread-badge">${unread}</span>' : ''}
           </span>
         </button>`;
     }).join('');
-  } else {
-    if (!state.channels.length) {
-      els.chatList.innerHTML = '<div class="chat-empty">Aún no hay grupos en tu comunidad.<br>Los canales del servidor aparecerán aquí.</div>';
+  } else if (state.view === 'groups') {
+    let channels = [...state.channels];
+    if (query) {
+      channels = channels.filter(ch =>
+        ch.name.toLowerCase().includes(query) ||
+        (ch.community && ch.community.name.toLowerCase().includes(query))
+      );
+    }
+
+    if (!channels.length) {
+      els.chatList.innerHTML = '<div class="chat-empty">No se encontraron grupos ni canales.</div>';
       return;
     }
 
     // Reordenar canales por actividad reciente
-    const channels = [...state.channels].sort((a, b) => {
+    channels.sort((a, b) => {
       const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
       const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
       return timeB - timeA;
@@ -724,7 +765,43 @@ function renderList() {
           </span>
           <span class="chat-right-meta">
             <span class="chat-time"></span>
-            ${unread > 0 ? `<span class="unread-badge">${unread}</span>` : ''}
+            ${unread > 0 ? `<span class="unread-badge">${unread}</span>' : ''}
+          </span>
+        </button>`;
+    }).join('');
+  } else {
+    // Vista Directorio Completo
+    let peers = state.directory.filter(u => u.id !== state.user.id);
+    if (query) {
+      peers = peers.filter(p =>
+        (p.displayName && p.displayName.toLowerCase().includes(query)) ||
+        (p.username && p.username.toLowerCase().includes(query)) ||
+        (p.email && p.email.toLowerCase().includes(query)) ||
+        ((ROLE_LABELS[p.globalRole] || p.globalRole) && (ROLE_LABELS[p.globalRole] || p.globalRole).toLowerCase().includes(query))
+      );
+    }
+
+    if (!peers.length) {
+      els.chatList.innerHTML = `<div class="chat-empty">No se encontraron contactos en el directorio con "${esc(query)}".</div>';
+      return;
+    }
+
+    peers.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+    els.chatList.innerHTML = peers.map(peer => {
+      const online = peer.status === 'ONLINE' || peer.status === 'IDLE' || peer.status === 'DND';
+      return `
+        <button type="button" class="chat-item" data-peer-id="${peer.id}">
+          <span class="avatar-wrap">
+            ${avatarHtml(peer)}
+            <span class="presence-dot ${online ? 'on' : ''}" title="${esc(STATUS_LABELS[peer.status] || '')}"></span>
+          </span>
+          <span class="chat-meta">
+            <span class="chat-title">${esc(peer.displayName)}</span>
+            <span class="chat-sub">${esc(peer.email)} · ${ROLE_LABELS[peer.globalRole] || peer.globalRole}</span>
+          </span>
+          <span class="chat-right-meta">
+            <span class="role-chip" style="color:var(--accent-2);background:var(--chip);">Chatear</span>
           </span>
         </button>`;
     }).join('');
@@ -732,8 +809,12 @@ function renderList() {
 
   els.chatList.querySelectorAll('.chat-item').forEach(item => {
     item.addEventListener('click', () => {
-      if (item.dataset.chatId) openChat({ kind: state.view === 'direct' ? 'direct' : 'channel', id: item.dataset.chatId });
-      else if (item.dataset.peerId) openDirectWith(item.dataset.peerId);
+      if (item.dataset.chatId) openChat({ kind: state.view === 'groups' ? 'channel' : 'direct', id: item.dataset.chatId });
+      else if (item.dataset.peerId) {
+        state.view = 'direct';
+        syncView();
+        openDirectWith(item.dataset.peerId);
+      }
     });
   });
 }
@@ -811,16 +892,19 @@ function renderHeader(chat) {
     els.chatSub.dataset.base = peer ? `${ROLE_LABELS[peer.globalRole] || peer.globalRole} · ${STATUS_LABELS[peer.status] || 'Desconectado'}` : '';
     els.chatSub.textContent = els.chatSub.dataset.base;
     els.membersBtn.classList.add('hidden');
+    els.deleteChatBtn.classList.add('hidden');
   } else {
     const ch = state.channels.find(c => c.id === chat.id);
-    els.chatName.textContent = '# ' + ch.name;
-    els.chatAvatar.textContent = esc(initials(ch.name));
+    els.chatName.textContent = '# ' + (ch ? ch.name : 'canal');
+    els.chatAvatar.textContent = esc(initials(ch ? ch.name : '#'));
     els.chatAvatar.style.backgroundImage = '';
     els.chatAvatar.style.cssText = 'background:var(--accent-2);color:#fff;';
-    const members = (ch.community._count && ch.community._count.members) || 0;
-    els.chatSub.dataset.base = `${ch.community.name} · ${members} integrantes`;
+    const members = (ch && ch.community && ch.community._count && ch.community._count.members) || 0;
+    els.chatSub.dataset.base = ch && ch.community ? `${ch.community.name} · ${members} integrantes` : '';
     els.chatSub.textContent = els.chatSub.dataset.base;
     els.membersBtn.classList.remove('hidden');
+    const canDelete = canManageCommunity();
+    els.deleteChatBtn.classList.toggle('hidden', !canDelete);
   }
 }
 
@@ -1041,31 +1125,138 @@ function openCreateModal() {
     return;
   }
   state.modalMode = 'create';
-  els.modalTitle.textContent = 'Crear grupo de trabajo';
+  els.modalTitle.textContent = 'Crear nuevo grupo o canal';
+
+  const peers = state.directory.filter(u => u.id !== state.user.id);
+
   els.modalBody.innerHTML = `
     <div class="form-field">
-      <label>Nombre del grupo</label>
-      <input type="text" id="cg-name" placeholder="Ej. Núcleo Frontend" maxlength="50">
+      <label>Nombre del grupo / canal</label>
+      <input type="text" id="cg-name" placeholder="Ej. Equipo de Diseño y UX" maxlength="50">
     </div>
     <div class="form-field">
-      <label>Descripción / tema</label>
-      <input type="text" id="cg-desc" placeholder="Ej. Coordinación del equipo de frontend" maxlength="200">
+      <label>Descripción / Tema (opcional)</label>
+      <input type="text" id="cg-desc" placeholder="Ej. Coordinación y prototipos de diseño" maxlength="200">
     </div>
-    <button id="cg-create" class="btn-primary">Crear grupo</button>`;
+    <div class="form-field">
+      <label>Seleccionar integrantes para agregar al grupo:</label>
+      <div class="member-checklist" id="cg-members-list">
+        ${peers.length ? peers.map(p => `
+          <label class="member-check-item">
+            <input type="checkbox" value="${p.id}" checked>
+            ${avatarHtml(p, 'avatar')}
+            <div class="check-info">
+              <strong>${esc(p.displayName)}</strong>
+              <span>${esc(p.email)} · ${ROLE_LABELS[p.globalRole] || p.globalRole}</span>
+            </div>
+          </label>
+        `).join('') : '<div class="empty-note">No hay otros usuarios registrados aún.</div>'}
+      </div>
+    </div>
+    <button id="cg-create" class="btn-primary" style="margin-top: 10px;">Crear y Agregar Miembros</button>`;
+
   els.modalBody.querySelector('#cg-create').addEventListener('click', async () => {
     const name = els.modalBody.querySelector('#cg-name').value.trim();
     const topic = els.modalBody.querySelector('#cg-desc').value.trim();
     if (!name) { toast('Escribe un nombre para el grupo.'); return; }
+
+    const checkedBoxes = els.modalBody.querySelectorAll('#cg-members-list input[type="checkbox"]:checked');
+    const selectedMemberIds = Array.from(checkedBoxes).map(cb => cb.value);
+
     try {
-      const res = await api(`/communities/${state.community.id}/channels`, { method: 'POST', body: { name, topic } });
+      const res = await api(`/communities/${state.community.id}/channels`, {
+        method: 'POST',
+        body: { name, topic },
+      });
       els.modal.classList.add('hidden');
       await loadAppData();
       renderAll();
       await openChat({ kind: 'channel', id: res.channel.id });
-      toast(`Grupo "# ${res.channel.name}" creado.`);
-    } catch (e) { toast(e.message); }
+      toast(`Grupo "# ${res.channel.name}" creado con ${selectedMemberIds.length} miembros.`);
+    } catch (e) {
+      toast(e.message);
+    }
   });
   els.modal.classList.remove('hidden');
+}
+
+// ---------- Archivos Compartidos en el Chat ----------
+function openSharedFilesModal() {
+  if (!state.activeChat) return;
+  const name = els.chatName.textContent;
+  els.modalTitle.textContent = `Archivos Compartidos · ${name}`;
+
+  // Extraer todos los archivos de los mensajes actuales
+  const files = [];
+  (state.messages || []).forEach(m => {
+    (m.attachments || []).forEach(att => {
+      files.push({
+        ...att,
+        sender: m.sender || {},
+        messageCreatedAt: m.createdAt,
+      });
+    });
+  });
+
+  if (!files.length) {
+    els.modalBody.innerHTML = '<div class="chat-empty">No se han compartido archivos ni imágenes en esta conversación todavía.</div>';
+    els.modal.classList.remove('hidden');
+    return;
+  }
+
+  // Ordenar los más recientes primero
+  files.reverse();
+
+  els.modalBody.innerHTML = `
+    <div style="margin-bottom: 12px; font-size: 12px; color: var(--text-muted);">
+      ${files.length} archivo${files.length === 1 ? '' : 's'} compartido${files.length === 1 ? '' : 's'} en este chat:
+    </div>
+    <div class="shared-files-grid">
+      ${files.map(f => {
+        const url = fixFileUrl(f.fileUrl);
+        const isImg = (f.mimeType && f.mimeType.startsWith('image/')) || /\.(png|jpe?g|gif|webp|svg)$/i.test(f.originalName || '');
+        const sizeStr = f.fileSizeBytes ? `${(f.fileSizeBytes / 1024).toFixed(1)} KB` : '';
+        const senderName = f.sender.displayName || 'Usuario';
+        return `
+          <a class="shared-file-card" href="${esc(url)}" target="_blank" rel="noopener">
+            <div class="shared-file-thumb">
+              ${isImg
+                ? `<img src="${esc(url)}" alt="${esc(f.originalName)}" loading="lazy">`
+                : `<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`}
+            </div>
+            <div class="shared-file-meta">
+              <strong>${esc(f.originalName)}</strong>
+              <span>Por ${esc(senderName)} · ${fmtTime(f.messageCreatedAt)} ${sizeStr ? `(${sizeStr})` : ''}</span>
+            </div>
+          </a>
+        `;
+      }).join('')}
+    </div>
+  `;
+  els.modal.classList.remove('hidden');
+}
+
+// ---------- Eliminar Canal / Grupo Activo ----------
+async function deleteActiveChat() {
+  if (!state.activeChat) return;
+
+  if (state.activeChat.kind === 'channel') {
+    const ch = state.channels.find(c => c.id === state.activeChat.id);
+    const chName = ch ? `# ${ch.name}` : 'este canal';
+    if (!confirm(`¿Estás seguro de que deseas eliminar permanentemente el grupo ${chName}? Se borrarán todos sus mensajes.`)) {
+      return;
+    }
+
+    try {
+      await api(`/channels/${state.activeChat.id}`, { method: 'DELETE' });
+      toast(`Grupo ${chName} eliminado exitosamente`);
+      await loadAppData();
+      closeChatIfNotInView();
+      renderAll();
+    } catch (e) {
+      toast(e.message);
+    }
+  }
 }
 
 // ---------- Vista / switch ----------
@@ -1080,19 +1271,20 @@ function closeChatIfNotInView() {
   if (state.activeChat) {
     const inView = state.view === 'direct'
       ? state.activeChat.kind === 'direct'
-      : state.activeChat.kind === 'channel';
-    if (!inView) {
+      : (state.view === 'groups' ? state.activeChat.kind === 'channel' : false);
+    if (!inView && state.view !== 'directory') {
       leaveChatRoom(state.activeChat);
       state.activeChat = null;
       state.messages = [];
       clearPendingFiles();
       els.chatHeader.classList.add('hidden');
       els.membersBtn.classList.add('hidden');
+      els.deleteChatBtn.classList.add('hidden');
       els.messages.classList.add('hidden');
       els.composer.classList.add('hidden');
       els.emptyState.classList.remove('hidden');
       els.emptyText.textContent = state.view === 'direct'
-        ? 'Selecciona un integrante de la comunidad para conversar.'
+        ? 'Selecciona un integrante para conversar.'
         : 'Selecciona un grupo para ver sus conversaciones.';
     }
   }
@@ -1135,17 +1327,37 @@ function init() {
   els.profileOpen.addEventListener('click', () => openAccountModal());
   els.logoutBtn.addEventListener('click', () => logout());
 
-  // Switch Comunidad / Grupos
+  // Switch Mensajes / Grupos / Directorio
   els.segBtns.forEach(btn => btn.addEventListener('click', () => {
     state.view = btn.dataset.view;
     syncView();
   }));
+
+  // Buscador en tiempo real
+  if (els.searchInput) {
+    els.searchInput.addEventListener('input', () => renderList());
+  }
+  if (els.searchClear) {
+    els.searchClear.addEventListener('click', () => {
+      els.searchInput.value = '';
+      renderList();
+      els.searchInput.focus();
+    });
+  }
 
   els.newGroupBtn.addEventListener('click', openCreateModal);
 
   els.membersBtn.addEventListener('click', () => {
     if (state.activeChat && state.activeChat.kind === 'channel') openMembersModal();
   });
+
+  // Botones de cabecera de chat: Archivos compartidos y Eliminar
+  if (els.sharedFilesBtn) {
+    els.sharedFilesBtn.addEventListener('click', openSharedFilesModal);
+  }
+  if (els.deleteChatBtn) {
+    els.deleteChatBtn.addEventListener('click', deleteActiveChat);
+  }
 
   // Modal
   els.modalClose.addEventListener('click', () => els.modal.classList.add('hidden'));

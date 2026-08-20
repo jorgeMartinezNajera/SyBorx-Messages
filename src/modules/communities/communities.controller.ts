@@ -75,4 +75,14 @@ export class CommunitiesController {
   ) {
     return this.communitiesService.leaveCommunity(communityId, userId);
   }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Eliminar una comunidad (solo el propietario o SUPERADMIN)' })
+  async deleteCommunity(
+    @Param('id') communityId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('globalRole') userGlobalRole: GlobalRole,
+  ) {
+    return this.communitiesService.deleteCommunity(communityId, userId, userGlobalRole);
+  }
 }

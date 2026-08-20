@@ -28,6 +28,10 @@ export class CreateCommunityDto {
   @IsOptional()
   @IsBoolean()
   isPrivate?: boolean;
+
+  @ApiPropertyOptional({ description: 'IDs de usuarios para agregar automáticamente a la comunidad', example: ['uuid-1', 'uuid-2'] })
+  @IsOptional()
+  memberIds?: string[];
 }
 
 export class UpdateCommunityDto {

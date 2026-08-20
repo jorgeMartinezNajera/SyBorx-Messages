@@ -22,6 +22,24 @@ export class CommunitiesService {
       );
     }
 
+    const membersToCreate: any[] = [
+      {
+        userId,
+        role: CommunityRole.COMMUNITY_OWNER,
+      },
+    ];
+
+    if (dto.memberIds && Array.isArray(dto.memberIds)) {
+      for (const mId of dto.memberIds) {
+        if (mId && mId !== userId) {
+          membersToCreate.push({
+            userId: mId,
+            role: CommunityRole.COMMUNITY_MEMBER,
+          });
+        }
+      }
+    }
+
     const community = await this.prisma.community.create({
       data: {
         name: dto.name,
@@ -31,10 +49,7 @@ export class CommunitiesService {
         isPrivate: dto.isPrivate ?? false,
         ownerId: userId,
         members: {
-          create: {
-            userId,
-            role: CommunityRole.COMMUNITY_OWNER,
-          },
+          create: membersToCreate,
         },
         channels: {
           create: [
@@ -269,5 +284,25 @@ export class CommunitiesService {
     });
 
     return { message: 'Has salido de la comunidad exitosamente' };
+  }
+
+  async deleteCommunity(communityId: string, userId: string, userGlobalRole: GlobalRole) {
+    const community = await this.prisma.community.findUnique({
+      where: { id: communityId },
+    });
+
+    if (!community) {
+      throw new NotFoundException('Comunidad no encontrada');
+    }
+
+    if (community.ownerId !== userId && userGlobalRole !== GlobalRole.SUPERADMIN) {
+      throw new ForbiddenException('Solo el propietario de la comunidad o un SUPERADMIN pueden eliminarla');
+    }
+
+    await this.prisma.community.delete({
+      where: { id: communityId },
+    });
+
+    return { message: 'Comunidad eliminada exitosamente' };
   }
 }
