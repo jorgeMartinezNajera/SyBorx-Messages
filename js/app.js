@@ -307,23 +307,64 @@ function scrollToBottom() {
   });
 }
 
-function sendMessage() {
+async function sendMessage() {
   const text = els.input.value.trim();
   if ((!text && !pendingFiles.length) || !state.activeChatId) return;
   const chat = resolveChat(state.activeChatId);
   if (!chat) return;
-  chat.data.messages.push({
+
+  const currentFiles = pendingFiles.splice(0);
+  renderAttachments();
+
+  let uploadedAttachments = [];
+  if (window.syborxApi && window.syborxApi.token && currentFiles.length > 0) {
+    for (const f of currentFiles) {
+      try {
+        const uploadRes = await window.syborxApi.uploadFile(f.file);
+        uploadedAttachments.push(uploadRes);
+      } catch (err) {
+        console.warn('Error subiendo archivo:', err);
+      }
+    }
+  }
+
+  const localFiles = currentFiles.map((a, idx) => ({
+    name: a.file.name,
+    isImage: a.isImage,
+    url: uploadedAttachments[idx]?.fileUrl || a.url,
+  }));
+
+  const newMsg = {
     from: currentUser().id,
     text,
     time: nowTime(),
-    files: pendingFiles.splice(0).map(a => ({ name: a.file.name, isImage: a.isImage, url: a.url })),
-  });
+    files: localFiles,
+  };
+
+  chat.data.messages.push(newMsg);
   els.input.value = '';
   autoResize();
-  renderAttachments();
   renderMessages(chat);
   renderList();
   scrollToBottom();
+
+  // Enviar al Backend vía API REST si hay sesión activa
+  if (window.syborxApi && window.syborxApi.token) {
+    try {
+      const payload = {
+        content: text || 'Archivo adjunto',
+        messageType: currentFiles.length > 0 ? (currentFiles[0].isImage ? 'IMAGE' : 'FILE') : 'TEXT',
+      };
+
+      if (chat.type === 'group') {
+        payload.channelId = chat.data.channelId || undefined;
+      }
+
+      await window.syborxApi.sendMessage(payload);
+    } catch (apiErr) {
+      console.log('Mensaje guardado localmente (Modo Híbrido UI):', apiErr.message);
+    }
+  }
 }
 
 function renderAttachments() {
@@ -655,6 +696,26 @@ function init() {
   renderAll();
   // Abre la conversación más reciente por defecto para mostrar el diseño
   if (!state.activeChatId) openChat('d-u2');
+
+  // Inicializar conexión con el backend de NestJS
+  if (window.syborxApi) {
+    window.syborxApi.login('dev@syborx.com', 'Password123!').then(() => {
+      console.log(' Conectado con sesión activa al Backend NestJS');
+    }).catch(() => {
+      console.log(' Backend local en espera');
+    });
+
+    window.syborxApi.on('message:new', (msg) => {
+      console.log('⚡ Mensaje recibido vía WebSockets:', msg);
+      if (state.activeChatId) {
+        const chat = resolveChat(state.activeChatId);
+        if (chat) {
+          renderMessages(chat);
+          scrollToBottom();
+        }
+      }
+    });
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

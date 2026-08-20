@@ -37,9 +37,12 @@ async function bootstrap() {
     }),
   );
 
-  // 4. Serve Static Uploaded Files
+  // 4. Serve Static Uploaded Files & Frontend Client
   app.useStaticAssets(join(process.cwd(), 'uploads'), {
     prefix: '/uploads/',
+  });
+  app.useStaticAssets(join(process.cwd()), {
+    index: 'index.html',
   });
 
   // 5. Swagger / OpenAPI Documentation
