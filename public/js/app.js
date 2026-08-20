@@ -97,9 +97,33 @@ const state = {
   modalMode: null,
   socket: null,
   typingUsers: {},
+  unreadCounts: {},
+  recentChatId: null,
+  recentMsgId: null,
 };
 
 const pendingFiles = [];
+
+// ---------- Sonido sutil de notificación (Web Audio API) ----------
+function playMessageChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.exponentialRampToValueAtTime(1320, now + 0.12);
+    gain.gain.setValueAtTime(0.06, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.36);
+  } catch (_) {}
+}
 
 // ---------- Utilidades ----------
 function esc(s) {
@@ -347,22 +371,75 @@ function leaveChatRoom(chat) {
 }
 
 function onNewMessage(msg) {
+  const isFromMe = msg.senderId === state.user.id;
   const isActive = state.activeChat &&
     ((state.activeChat.kind === 'channel' && msg.channelId === state.activeChat.id) ||
      (state.activeChat.kind === 'direct' && msg.directChatId === state.activeChat.id));
+
   if (isActive) {
+    if (!isFromMe) {
+      state.recentMsgId = msg.id;
+      playMessageChime();
+    }
     upsertMessage(msg);
     renderMessages();
     scrollToBottom();
   }
+
+  // Actualizar metadata de DM y ordenar al inicio
   if (msg.directChatId) {
-    const dm = state.directChats.find(d => d.id === msg.directChatId);
-    if (dm) {
-      dm.lastMessage = { id: msg.id, content: msg.content, senderId: msg.senderId, createdAt: msg.createdAt, messageType: msg.messageType };
-      dm.updatedAt = new Date().toISOString();
+    let dm = state.directChats.find(d => d.id === msg.directChatId);
+    if (!dm) {
+      const otherUser = isFromMe
+        ? state.directory.find(u => u.id !== state.user.id)
+        : (msg.sender || state.directory.find(u => u.id === msg.senderId));
+      dm = {
+        id: msg.directChatId,
+        recipient: otherUser,
+        lastMessage: null,
+        updatedAt: msg.createdAt,
+      };
+      state.directChats.unshift(dm);
+    }
+    dm.lastMessage = {
+      id: msg.id,
+      content: msg.content,
+      senderId: msg.senderId,
+      createdAt: msg.createdAt,
+      messageType: msg.messageType,
+    };
+    dm.updatedAt = msg.createdAt || new Date().toISOString();
+
+    if (!isActive && !isFromMe) {
+      const peerId = dm.recipient ? dm.recipient.id : msg.senderId;
+      state.unreadCounts[peerId] = (state.unreadCounts[peerId] || 0) + 1;
+      state.unreadCounts[dm.id] = (state.unreadCounts[dm.id] || 0) + 1;
+      state.recentChatId = peerId;
+      playMessageChime();
     }
   }
-  if (!isActive && state.view === 'direct') renderList();
+
+  // Actualizar canal
+  if (msg.channelId) {
+    const ch = state.channels.find(c => c.id === msg.channelId);
+    if (ch) {
+      ch.lastMessage = {
+        id: msg.id,
+        content: msg.content,
+        senderId: msg.senderId,
+        createdAt: msg.createdAt,
+        messageType: msg.messageType,
+      };
+      ch.updatedAt = msg.createdAt || new Date().toISOString();
+    }
+    if (!isActive && !isFromMe) {
+      state.unreadCounts[msg.channelId] = (state.unreadCounts[msg.channelId] || 0) + 1;
+      state.recentChatId = msg.channelId;
+      playMessageChime();
+    }
+  }
+
+  renderList();
 }
 
 function onPresence(data) {
@@ -411,11 +488,21 @@ function renderList() {
   els.listTitle.textContent = state.view === 'direct' ? 'Comunidad' : 'Grupos';
 
   if (state.view === 'direct') {
-    const peers = state.directory.filter(u => u.id !== state.user.id);
+    let peers = state.directory.filter(u => u.id !== state.user.id);
     if (!peers.length) {
       els.chatList.innerHTML = '<div class="chat-empty">Aún no hay otros integrantes registrados.<br>Cuando alguien se registre aparecerá aquí.</div>';
       return;
     }
+
+    // Reordenar: Los chats con mensajes más recientes siempre suben a la cima
+    peers.sort((a, b) => {
+      const dmA = state.directChats.find(d => d.recipient && d.recipient.id === a.id);
+      const dmB = state.directChats.find(d => d.recipient && d.recipient.id === b.id);
+      const timeA = dmA?.updatedAt ? new Date(dmA.updatedAt).getTime() : 0;
+      const timeB = dmB?.updatedAt ? new Date(dmB.updatedAt).getTime() : 0;
+      return timeB - timeA;
+    });
+
     els.chatList.innerHTML = peers.map(peer => {
       const dm = state.directChats.find(d => d.recipient && d.recipient.id === peer.id);
       const last = dm && dm.lastMessage ? dm.lastMessage : null;
@@ -423,8 +510,11 @@ function renderList() {
       const online = peer.status === 'ONLINE' || peer.status === 'IDLE' || peer.status === 'DND';
       const preview = last ? (last.messageType === 'TEXT' ? last.content : 'Adjunto') : (peer.customStatus || STATUS_LABELS[peer.status] || peer.bio || '');
       const time = last ? fmtTime(last.createdAt) : '';
+      const unread = state.unreadCounts[peer.id] || (dm ? state.unreadCounts[dm.id] : 0) || 0;
+      const isRecent = state.recentChatId === peer.id || (dm && state.recentChatId === dm.id);
+
       return `
-        <button type="button" class="chat-item ${active ? 'active' : ''}" data-peer-id="${peer.id}" ${dm ? `data-chat-id="${dm.id}"` : ''}>
+        <button type="button" class="chat-item ${active ? 'active' : ''} ${unread > 0 ? 'has-unread' : ''} ${isRecent ? 'animate-pulse-glow' : ''}" data-peer-id="${peer.id}" ${dm ? `data-chat-id="${dm.id}"` : ''}>
           <span class="avatar-wrap">
             ${avatarHtml(peer)}
             <span class="presence-dot ${online ? 'on' : ''}" title="${esc(STATUS_LABELS[peer.status] || '')}"></span>
@@ -433,7 +523,10 @@ function renderList() {
             <span class="chat-title">${esc(peer.displayName)}</span>
             <span class="chat-sub">${esc(preview)}</span>
           </span>
-          <span class="chat-time">${time}</span>
+          <span class="chat-right-meta">
+            <span class="chat-time">${time}</span>
+            ${unread > 0 ? `<span class="unread-badge">${unread}</span>` : ''}
+          </span>
         </button>`;
     }).join('');
   } else {
@@ -441,17 +534,31 @@ function renderList() {
       els.chatList.innerHTML = '<div class="chat-empty">Aún no hay grupos en tu comunidad.<br>Los canales del servidor aparecerán aquí.</div>';
       return;
     }
-    els.chatList.innerHTML = state.channels.map(ch => {
+
+    // Reordenar canales por actividad reciente
+    const channels = [...state.channels].sort((a, b) => {
+      const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    els.chatList.innerHTML = channels.map(ch => {
       const active = state.activeChat && state.activeChat.kind === 'channel' && state.activeChat.id === ch.id;
       const members = (ch.community._count && ch.community._count.members) || 0;
+      const unread = state.unreadCounts[ch.id] || 0;
+      const isRecent = state.recentChatId === ch.id;
+
       return `
-        <button type="button" class="chat-item ${active ? 'active' : ''}" data-chat-id="${ch.id}">
+        <button type="button" class="chat-item ${active ? 'active' : ''} ${unread > 0 ? 'has-unread' : ''} ${isRecent ? 'animate-pulse-glow' : ''}" data-chat-id="${ch.id}">
           <span class="avatar" style="background:var(--accent-2);color:#fff;">${esc(initials('#' + ch.name))}</span>
           <span class="chat-meta">
             <span class="chat-title"># ${esc(ch.name)}</span>
             <span class="chat-sub">${esc(ch.community.name)} · ${members} integrantes</span>
           </span>
-          <span class="chat-time"></span>
+          <span class="chat-right-meta">
+            <span class="chat-time"></span>
+            ${unread > 0 ? `<span class="unread-badge">${unread}</span>` : ''}
+          </span>
         </button>`;
     }).join('');
   }
@@ -491,6 +598,17 @@ async function openChat(chat) {
     leaveChatRoom(state.activeChat);
   }
   state.activeChat = chat;
+
+  // Limpiar conteo de no leídos de esta conversación
+  delete state.unreadCounts[chat.id];
+  const dm = state.directChats.find(d => d.id === chat.id);
+  if (dm && dm.recipient) {
+    delete state.unreadCounts[dm.recipient.id];
+  }
+  if (state.recentChatId === chat.id || (dm && dm.recipient && state.recentChatId === dm.recipient.id)) {
+    state.recentChatId = null;
+  }
+
   await loadMessages(chat);
   connectChatRoom(chat);
   renderList();
@@ -560,6 +678,7 @@ function renderMessages() {
     lastDay = day;
     const mine = m.senderId === state.user.id;
     const sender = m.sender || {};
+    const isRecentlyReceived = m.id === state.recentMsgId && !mine;
     const filesHtml = (m.attachments || []).map(f => f.mimeType && f.mimeType.startsWith('image/')
       ? `<img class="msg-image" src="${esc(f.fileUrl)}" alt="${esc(f.originalName)}" title="${esc(f.originalName)}" loading="lazy">`
       : `<a class="file-chip" href="${esc(f.fileUrl)}" target="_blank" rel="noopener">
@@ -573,7 +692,7 @@ function renderMessages() {
     return `${sep}
       <div class="msg ${mine ? 'out' : 'in'}">
         ${mine ? '' : avatarHtml(sender)}
-        <div class="bubble">
+        <div class="bubble ${isRecentlyReceived ? 'bubble-received-anim' : ''}">
           ${state.activeChat.kind === 'channel' && !mine ? `<span class="bubble-sender">${esc(sender.displayName || 'Usuario')}</span>` : ''}
           ${m.content && m.messageType !== 'SYSTEM' ? `<div class="bubble-text">${esc(m.content)}${edited}</div>` : ''}
           ${filesHtml}

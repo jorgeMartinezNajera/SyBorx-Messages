@@ -433,6 +433,7 @@ input, textarea, select { font-family: var(--font); }
   line-height: 1.55;
   overflow-wrap: break-word;
   position: relative;
+  transition: box-shadow .35s ease, border-color .35s ease;
 }
 .msg.in .bubble {
   background: var(--glass-bg);
@@ -456,6 +457,118 @@ input, textarea, select { font-family: var(--font); }
 .msg.out .bubble-sender { display: none; }
 .bubble-text { margin: 0; }
 .bubble-time { display: block; font-size: 10px; margin-top: 5px; opacity: .75; text-align: right; }
+
+/* Animación de entrada fluida para mensajes */
+.msg {
+  animation: messageSlideIn .3s cubic-bezier(.22, 1, .36, 1) forwards;
+}
+
+@keyframes messageSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Efecto de resplandor líquido para mensajes recibidos */
+.bubble.bubble-received-anim {
+  animation: bubbleReceivedGlow 1.8s cubic-bezier(.22, 1, .36, 1);
+}
+
+@keyframes bubbleReceivedGlow {
+  0% {
+    box-shadow: 0 0 0 0 var(--accent-2);
+    border-color: var(--accent);
+  }
+  35% {
+    box-shadow: 0 0 25px var(--accent-2), 0 6px 20px rgba(0,0,0,.25);
+    border-color: var(--accent);
+  }
+  100% {
+    box-shadow: none;
+    border-color: var(--glass-border);
+  }
+}
+
+/* ---------- Badges de mensajes no leídos y reordenamiento de chat ---------- */
+.unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #3A78E8, #1E4CA6);
+  box-shadow: 0 3px 12px rgba(58, 120, 232, .5);
+  animation: unreadBadgePop .35s cubic-bezier(.34, 1.56, .64, 1), unreadGlow 2.8s infinite ease-in-out;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+[data-theme="light"] .unread-badge {
+  background: linear-gradient(135deg, #1B2A4A, #2E4A7A);
+  box-shadow: 0 3px 12px rgba(27, 42, 74, .38);
+}
+
+@keyframes unreadBadgePop {
+  0% { transform: scale(0); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes unreadGlow {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.1); filter: brightness(1.25); }
+}
+
+/* Pulso animado para el chat que acaba de recibir mensaje y sube */
+.chat-item {
+  position: relative;
+  transition: transform .35s cubic-bezier(.34, 1.4, .64, 1),
+              box-shadow .35s ease,
+              background .3s ease,
+              border-color .35s ease;
+}
+
+.chat-item.has-unread {
+  border-color: var(--accent-2);
+  background: var(--glass-strong);
+}
+
+.chat-item.animate-pulse-glow {
+  animation: chatCardPulse 1.6s cubic-bezier(.22, 1, .36, 1);
+}
+
+@keyframes chatCardPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: var(--glass-shadow);
+  }
+  30% {
+    transform: scale(1.025);
+    box-shadow: 0 0 28px var(--accent-2), 0 10px 30px var(--glass-shadow);
+    border-color: var(--accent);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: var(--glass-shadow);
+  }
+}
+
+.chat-right-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-start;
+  flex-shrink: 0;
+}
 
 .day-sep {
   align-self: center;
