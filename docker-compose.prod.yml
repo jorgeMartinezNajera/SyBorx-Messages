@@ -1,0 +1,53 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: syborx_backend_prod
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      API_PREFIX: api
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres_secure_pass}@postgres:5432/${DB_NAME:-syborx_messenger_db}?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      ALLOWED_CORP_DOMAIN: ${ALLOWED_CORP_DOMAIN:-syborx.com}
+      ALLOW_GMAIL_TESTING: ${ALLOW_GMAIL_TESTING:-true}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - syborx_prod_network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: syborx_postgres_prod
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres_secure_pass}
+      POSTGRES_DB: ${DB_NAME:-syborx_messenger_db}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-syborx_messenger_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - syborx_prod_network
+
+volumes:
+  postgres_prod_data:
+    driver: local
+  uploads_data:
+    driver: local
+
+networks:
+  syborx_prod_network:
+    driver: bridge

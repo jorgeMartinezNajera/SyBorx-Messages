@@ -1,0 +1,226 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum GlobalRole {
+  SUPERADMIN
+  ADMIN
+  TECH_LEAD
+  DEVELOPER
+  GUEST
+}
+
+enum UserStatus {
+  ONLINE
+  IDLE
+  DND
+  OFFLINE
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+}
+
+enum CommunityRole {
+  COMMUNITY_OWNER
+  COMMUNITY_ADMIN
+  COMMUNITY_MODERATOR
+  COMMUNITY_MEMBER
+}
+
+enum ChannelType {
+  TEXT
+  VOICE_PREP
+  ANNOUNCEMENT
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  AUDIO
+  SYSTEM
+  AI_BOT
+}
+
+model User {
+  id            String       @id @default(uuid())
+  email         String       @unique
+  username      String       @unique
+  passwordHash  String
+  displayName   String
+  avatarUrl     String?
+  bio           String?
+  globalRole    GlobalRole   @default(DEVELOPER)
+  status        UserStatus   @default(OFFLINE)
+  customStatus  String?
+  isActive      Boolean      @default(true)
+  authProvider  AuthProvider @default(LOCAL)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  refreshTokens          RefreshToken[]
+  ownedCommunities       Community[]          @relation("CommunityOwner")
+  communityMemberships   CommunityMember[]
+  directChatMemberships  DirectChatMember[]
+  sentMessages           Message[]            @relation("UserSentMessages")
+  messageReactions       MessageReaction[]
+  auditLogs              AuditLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+model Community {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  iconUrl     String?
+  bannerUrl   String?
+  ownerId     String
+  owner       User     @relation("CommunityOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  isPrivate   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  channels Channel[]
+  members  CommunityMember[]
+
+  @@map("communities")
+}
+
+model CommunityMember {
+  id          String        @id @default(uuid())
+  communityId String
+  community   Community     @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nickname    String?
+  role        CommunityRole @default(COMMUNITY_MEMBER)
+  joinedAt    DateTime      @default(now())
+
+  @@unique([communityId, userId])
+  @@map("community_members")
+}
+
+model Channel {
+  id          String      @id @default(uuid())
+  communityId String
+  community   Community   @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  name        String
+  topic       String?
+  type        ChannelType @default(TEXT)
+  position    Int         @default(0)
+  isPrivate   Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  messages Message[]
+
+  @@map("channels")
+}
+
+model DirectChat {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members  DirectChatMember[]
+  messages Message[]
+
+  @@map("direct_chats")
+}
+
+model DirectChatMember {
+  id           String     @id @default(uuid())
+  directChatId String
+  directChat   DirectChat @relation(fields: [directChatId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt   DateTime?
+  joinedAt     DateTime   @default(now())
+
+  @@unique([directChatId, userId])
+  @@map("direct_chat_members")
+}
+
+model Message {
+  id              String      @id @default(uuid())
+  senderId        String
+  sender          User        @relation("UserSentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  channelId       String?
+  channel         Channel?    @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  directChatId    String?
+  directChat      DirectChat? @relation(fields: [directChatId], references: [id], onDelete: Cascade)
+  parentMessageId String?
+  parentMessage   Message?    @relation("MessageReplies", fields: [parentMessageId], references: [id], onDelete: SetNull)
+  replies         Message[]   @relation("MessageReplies")
+  content         String
+  messageType     MessageType @default(TEXT)
+  isEdited        Boolean     @default(false)
+  isPinned        Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  attachments Attachment[]
+  reactions   MessageReaction[]
+
+  @@map("messages")
+}
+
+model Attachment {
+  id            String   @id @default(uuid())
+  messageId     String
+  message       Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  originalName  String
+  storedName    String
+  mimeType      String
+  fileSizeBytes Int
+  fileUrl       String
+  createdAt     DateTime @default(now())
+
+  @@map("attachments")
+}
+
+model MessageReaction {
+  id        String   @id @default(uuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId, emoji])
+  @@map("message_reactions")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
