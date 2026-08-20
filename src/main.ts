@@ -42,6 +42,20 @@ async function bootstrap() {
     prefix: '/uploads/',
   });
 
+  // 4b. Serve Frontend (SPA) from /public
+  app.useStaticAssets(join(process.cwd(), 'public'));
+  app.use((req: any, res: any, next: () => void) => {
+    if (
+      req.method === 'GET' &&
+      !req.path.startsWith(`/${apiPrefix}`) &&
+      !req.path.startsWith('/uploads') &&
+      !req.path.startsWith('/socket.io')
+    ) {
+      return res.sendFile(join(process.cwd(), 'public', 'index.html'));
+    }
+    next();
+  });
+
   // 5. Swagger / OpenAPI Documentation
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SyBorx-Messenger API')

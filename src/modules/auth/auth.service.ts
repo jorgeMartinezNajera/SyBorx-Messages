@@ -12,7 +12,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { GlobalRole } from '@prisma/client';
+import { GlobalRole, CommunityRole } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -72,6 +72,21 @@ export class AuthService {
         createdAt: true,
       },
     });
+
+    // Auto-join nuevos usuarios a la comunidad pública principal
+    const publicCommunity = await this.prisma.community.findFirst({
+      where: { isPrivate: false },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (publicCommunity) {
+      await this.prisma.communityMember.create({
+        data: {
+          communityId: publicCommunity.id,
+          userId: user.id,
+          role: CommunityRole.COMMUNITY_MEMBER,
+        },
+      });
+    }
 
     const tokens = await this.generateTokens(user.id, user.email, user.username, user.globalRole);
 

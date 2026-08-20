@@ -1,0 +1,938 @@
+// ============================================================
+// SyBorx Comunity — Cliente conectado al backend NestJS
+// API /api · WebSocket /realtime · JWT Bearer
+// ============================================================
+
+const $ = sel => document.querySelector(sel);
+
+const API_BASE = '/api';
+const STORE_KEY_TOKEN = 'syborx_token';
+const STORE_KEY_THEME = 'syborx_theme';
+
+const ROLE_LABELS = {
+  SUPERADMIN: 'CEO / Superadmin',
+  ADMIN: 'Admin',
+  TECH_LEAD: 'Tech Lead',
+  DEVELOPER: 'Developer',
+  GUEST: 'Guest',
+};
+
+const COMM_ROLE_LABELS = {
+  COMMUNITY_OWNER: 'Propietario',
+  COMMUNITY_ADMIN: 'Admin del servidor',
+  COMMUNITY_MODERATOR: 'Moderador',
+  COMMUNITY_MEMBER: 'Integrante',
+};
+
+const STATUS_LABELS = {
+  ONLINE: 'En línea',
+  IDLE: 'Ausente',
+  DND: 'No molestar',
+  OFFLINE: 'Desconectado',
+};
+
+const els = {
+  authScreen: $('#auth-screen'),
+  app: $('#app'),
+  authThemeToggle: $('#auth-theme-toggle'),
+  authTabsBox: $('#auth-tabs'),
+  authTabs: document.querySelectorAll('.auth-tab'),
+  loginForm: $('#login-form'),
+  registerForm: $('#register-form'),
+  loginIdentifier: $('#login-identifier'),
+  loginPassword: $('#login-password'),
+  loginSubmit: $('#login-submit'),
+  regName: $('#reg-name'),
+  regEmail: $('#reg-email'),
+  regUsername: $('#reg-username'),
+  regPassword: $('#reg-password'),
+  regBio: $('#reg-bio'),
+  registerSubmit: $('#register-submit'),
+  authError: $('#auth-error'),
+  profileOpen: $('#profile-open'),
+  meAvatar: $('#me-avatar'),
+  meName: $('#me-name'),
+  meRole: $('#me-role'),
+  themeToggle: $('#theme-toggle'),
+  profileMenu: $('#profile-menu'),
+  profileMenuList: $('#profile-menu-list'),
+  viewSwitch: $('#view-switch'),
+  segBtns: document.querySelectorAll('#view-switch .seg-btn'),
+  listTitle: $('#list-title'),
+  newGroupBtn: $('#new-group-btn'),
+  chatList: $('#chat-list'),
+  chatHeader: $('#chat-header'),
+  chatAvatar: $('#chat-avatar'),
+  chatName: $('#chat-name'),
+  chatSub: $('#chat-sub'),
+  membersBtn: $('#members-btn'),
+  emptyState: $('#empty-state'),
+  emptyText: $('#empty-text'),
+  messages: $('#messages'),
+  messagesInner: $('#messages-inner'),
+  composer: $('#composer'),
+  input: $('#input'),
+  sendBtn: $('#send-btn'),
+  attachBtn: $('#attach-btn'),
+  fileInput: $('#file-input'),
+  attachmentsPreview: $('#attachments-preview'),
+  modal: $('#modal'),
+  modalTitle: $('#modal-title'),
+  modalClose: $('#modal-close'),
+  modalBody: $('#modal-body'),
+  toast: $('#toast'),
+};
+
+const state = {
+  token: localStorage.getItem(STORE_KEY_TOKEN) || null,
+  user: null,
+  view: 'direct',
+  activeChat: null, // { kind: 'direct'|'channel', id }
+  directory: [],
+  directChats: [],
+  communities: [],
+  channels: [],
+  community: null,
+  messages: [],
+  joinedRoom: null,
+  modalMode: null,
+  socket: null,
+  typingUsers: {},
+};
+
+const pendingFiles = [];
+
+// ---------- Utilidades ----------
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function toast(msg) {
+  els.toast.textContent = msg;
+  els.toast.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => els.toast.classList.remove('show'), 2400);
+}
+
+function initials(name) {
+  return String(name || '?').split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+}
+
+function avatarHtml(user, cls = 'avatar') {
+  if (!user) return `<span class="${cls}">?</span>`;
+  if (user.avatarUrl) return `<span class="${cls}" style="background-image:url('${esc(user.avatarUrl)}');background-size:cover;background-position:center;"></span>`;
+  return `<span class="${cls}">${esc(initials(user.displayName))}</span>`;
+}
+
+function setAvatar(el, user) {
+  if (user && user.avatarUrl) {
+    el.textContent = '';
+    el.style.backgroundImage = `url('${esc(user.avatarUrl)}')`;
+    el.style.backgroundSize = 'cover';
+    el.style.backgroundPosition = 'center';
+  } else {
+    el.textContent = initials(user ? user.displayName : '?');
+    el.style.backgroundImage = '';
+    el.style.backgroundSize = '';
+  }
+}
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function dayLabel(iso) {
+  const d = new Date(iso);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const day = new Date(d); day.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - day) / 86400000);
+  if (diff === 0) return 'Hoy';
+  if (diff === 1) return 'Ayer';
+  return d.toLocaleDateString('es', { day: 'numeric', month: 'long', year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined });
+}
+
+// ---------- Tema ----------
+function applyTheme(theme) {
+  document.body.setAttribute('data-theme', theme);
+  const dark = theme === 'dark';
+  [['#ico-moon', '#ico-sun'], ['#auth-ico-moon', '#auth-ico-sun']].forEach(([m, s]) => {
+    $(m).classList.toggle('hidden', dark);
+    $(s).classList.toggle('hidden', !dark);
+  });
+  localStorage.setItem(STORE_KEY_THEME, theme);
+}
+
+// ---------- API ----------
+async function api(path, opts = {}) {
+  const { method = 'GET', body, isForm } = opts;
+  const headers = {};
+  if (state.token) headers.Authorization = `Bearer ${state.token}`;
+  let payload = body;
+  if (body && !isForm) {
+    headers['Content-Type'] = 'application/json';
+    payload = JSON.stringify(body);
+  }
+  const res = await fetch(API_BASE + path, { method, headers, body: payload });
+  const data = await res.json().catch(() => ({}));
+
+  if (res.status === 401 && state.token && path !== '/auth/login') {
+    await logout(false);
+    throw new Error('Sesión expirada');
+  }
+  if (!res.ok) {
+    const msg = Array.isArray(data.message) ? data.message.join(' · ') : (data.message || 'Error de servidor');
+    throw new Error(msg);
+  }
+  return data;
+}
+
+// ---------- Autenticación ----------
+function setAuthError(msg) {
+  els.authError.textContent = msg;
+  els.authError.classList.remove('hidden');
+}
+
+function clearAuthError() {
+  els.authError.classList.add('hidden');
+}
+
+async function doLogin() {
+  const identifier = els.loginIdentifier.value.trim();
+  const password = els.loginPassword.value;
+  if (!identifier || !password) return setAuthError('Ingresa correo/usuario y contraseña.');
+  setBusy(els.loginSubmit, true, 'Ingresando...');
+  try {
+    const res = await api('/auth/login', { method: 'POST', body: { identifier, password } });
+    await onAuthenticated(res);
+  } catch (e) {
+    setAuthError(e.message);
+  } finally {
+    setBusy(els.loginSubmit, false, 'Iniciar sesión');
+  }
+}
+
+async function doRegister() {
+  const displayName = els.regName.value.trim();
+  const email = els.regEmail.value.trim();
+  const username = els.regUsername.value.trim();
+  const password = els.regPassword.value;
+  const bio = els.regBio.value.trim();
+  if (!displayName || !email || !username || !password) return setAuthError('Completa todos los campos obligatorios.');
+  setBusy(els.registerSubmit, true, 'Creando cuenta...');
+  try {
+    const res = await api('/auth/register', {
+      method: 'POST',
+      body: { email, username, password, displayName, ...(bio ? { bio } : {}) },
+    });
+    await onAuthenticated(res);
+  } catch (e) {
+    setAuthError(e.message);
+  } finally {
+    setBusy(els.registerSubmit, false, 'Crear cuenta');
+  }
+}
+
+function setBusy(btn, busy, label) {
+  btn.disabled = busy;
+  btn.textContent = label;
+}
+
+async function onAuthenticated(res) {
+  state.token = res.accessToken;
+  state.user = res.user;
+  localStorage.setItem(STORE_KEY_TOKEN, state.token);
+  clearAuthError();
+  await enterApp();
+}
+
+function showAuth() {
+  els.app.classList.add('hidden');
+  els.authScreen.classList.remove('hidden');
+}
+
+function showApp() {
+  els.authScreen.classList.add('hidden');
+  els.app.classList.remove('hidden');
+}
+
+async function logout(toastMsg = true) {
+  try {
+    if (state.token) await api('/auth/logout', { method: 'POST' });
+  } catch (_) { /* best effort */ }
+  state.token = null;
+  state.user = null;
+  state.socket && state.socket.disconnect();
+  state.socket = null;
+  localStorage.removeItem(STORE_KEY_TOKEN);
+  clearPendingFiles();
+  resetAppUI();
+  showAuth();
+  if (toastMsg) toast('Sesión cerrada');
+}
+
+function resetAppUI() {
+  state.activeChat = null;
+  state.directory = [];
+  state.directChats = [];
+  state.communities = [];
+  state.channels = [];
+  state.community = null;
+  state.messages = [];
+  state.joinedRoom = null;
+  els.chatHeader.classList.add('hidden');
+  els.membersBtn.classList.add('hidden');
+  els.messages.classList.add('hidden');
+  els.composer.classList.add('hidden');
+  els.emptyState.classList.remove('hidden');
+  els.chatList.innerHTML = '';
+}
+
+// ---------- Carga de datos ----------
+async function loadAppData() {
+  const [dir, dms, comms] = await Promise.all([
+    api('/users/directory?limit=100'),
+    api('/direct-chats'),
+    api('/communities/my'),
+  ]);
+  state.directory = dir.data || [];
+  state.directChats = dms || [];
+  state.communities = comms || [];
+  state.channels = [];
+  state.communities.forEach(c => (c.channels || []).forEach(ch => {
+    state.channels.push({ ...ch, community: c });
+  }));
+  state.community = state.communities[0] || null;
+}
+
+async function enterApp() {
+  try {
+    await loadAppData();
+    connectSocket();
+    showApp();
+    renderAll();
+    toast(`Bienvenido, ${state.user.displayName}`);
+  } catch (e) {
+    setAuthError(e.message);
+  }
+}
+
+// ---------- WebSocket ----------
+function connectSocket() {
+  if (state.socket) state.socket.disconnect();
+  state.socket = io('/realtime', { auth: { token: state.token } });
+  state.socket.on('connect', () => {
+    if (state.activeChat) connectChatRoom(state.activeChat);
+  });
+  state.socket.on('message:new', onNewMessage);
+  state.socket.on('user:presence', onPresence);
+  state.socket.on('user:typing', onTyping);
+  state.socket.on('disconnect', () => { state.joinedRoom = null; });
+}
+
+function connectChatRoom(chat) {
+  if (!state.socket || !state.socket.connected) return;
+  const room = chat.kind === 'channel' ? `channel_${chat.id}` : `direct_chat_${chat.id}`;
+  if (state.joinedRoom === room) return;
+  if (chat.kind === 'channel') state.socket.emit('channel:join', { channelId: chat.id });
+  else state.socket.emit('direct_chat:join', { chatId: chat.id });
+  state.joinedRoom = room;
+}
+
+function leaveChatRoom(chat) {
+  if (!state.socket || !state.joinedRoom) return;
+  if (chat.kind === 'channel') state.socket.emit('channel:leave', { channelId: chat.id });
+  else state.socket.emit('direct_chat:leave', { chatId: chat.id });
+  state.joinedRoom = null;
+}
+
+function onNewMessage(msg) {
+  const isActive = state.activeChat &&
+    ((state.activeChat.kind === 'channel' && msg.channelId === state.activeChat.id) ||
+     (state.activeChat.kind === 'direct' && msg.directChatId === state.activeChat.id));
+  if (isActive) {
+    upsertMessage(msg);
+    renderMessages();
+    scrollToBottom();
+  }
+  if (msg.directChatId) {
+    const dm = state.directChats.find(d => d.id === msg.directChatId);
+    if (dm) {
+      dm.lastMessage = { id: msg.id, content: msg.content, senderId: msg.senderId, createdAt: msg.createdAt, messageType: msg.messageType };
+      dm.updatedAt = new Date().toISOString();
+    }
+  }
+  if (!isActive && state.view === 'direct') renderList();
+}
+
+function onPresence(data) {
+  if (!data || !data.userId) return;
+  const dirUser = state.directory.find(u => u.id === data.userId);
+  if (dirUser) dirUser.status = data.status;
+  state.directChats.forEach(dm => { if (dm.recipient && dm.recipient.id === data.userId) dm.recipient.status = data.status; });
+  if (state.view === 'direct') renderList();
+  if (state.activeChat && state.activeChat.kind === 'direct') {
+    const dm = state.directChats.find(d => d.id === state.activeChat.id);
+    if (dm && dm.recipient && dm.recipient.id === data.userId) renderHeader(state.activeChat);
+  }
+}
+
+function onTyping(data) {
+  if (!state.activeChat) return;
+  const matches = (data.channelId && state.activeChat.kind === 'channel' && data.channelId === state.activeChat.id) ||
+    (data.directChatId && state.activeChat.kind === 'direct' && data.directChatId === state.activeChat.id);
+  if (!matches) return;
+  const key = `${data.user ? data.user.id : ''}`;
+  if (data.isTyping) {
+    state.typingUsers[key] = data.user ? data.user.displayName : '';
+    renderHeaderSubTyping();
+  } else {
+    delete state.typingUsers[key];
+    renderHeaderSubTyping();
+  }
+}
+
+// ---------- Sidebar ----------
+function renderProfile() {
+  const u = state.user;
+  if (!u) return;
+  setAvatar(els.meAvatar, u);
+  els.meName.textContent = u.displayName;
+  els.meRole.textContent = ROLE_LABELS[u.globalRole] || u.globalRole;
+}
+
+function renderProfileMenu() {
+  els.profileMenuList.innerHTML = `
+    <button type="button" id="menu-account">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span class="menu-role"><strong>Ver cuenta</strong></span>
+    </button>
+    <button type="button" id="menu-logout" class="danger">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      <span class="menu-role"><strong>Cerrar sesión</strong></span>
+    </button>`;
+  els.profileMenuList.querySelector('#menu-account').addEventListener('click', () => {
+    els.profileMenu.classList.add('hidden');
+    openAccountModal();
+  });
+  els.profileMenuList.querySelector('#menu-logout').addEventListener('click', () => {
+    els.profileMenu.classList.add('hidden');
+    logout();
+  });
+}
+
+function canManageCommunity() {
+  const role = state.community ? state.community.userRoleInCommunity : null;
+  return role === 'COMMUNITY_OWNER' || role === 'COMMUNITY_ADMIN';
+}
+
+function renderList() {
+  els.newGroupBtn.classList.toggle('hidden', !(state.view === 'groups' && canManageCommunity()));
+  els.listTitle.textContent = state.view === 'direct' ? 'Comunidad' : 'Grupos';
+
+  if (state.view === 'direct') {
+    const peers = state.directory.filter(u => u.id !== state.user.id);
+    if (!peers.length) {
+      els.chatList.innerHTML = '<div class="chat-empty">Aún no hay otros integrantes registrados.<br>Cuando alguien se registre aparecerá aquí.</div>';
+      return;
+    }
+    els.chatList.innerHTML = peers.map(peer => {
+      const dm = state.directChats.find(d => d.recipient && d.recipient.id === peer.id);
+      const last = dm && dm.lastMessage ? dm.lastMessage : null;
+      const active = state.activeChat && state.activeChat.kind === 'direct' && dm && state.activeChat.id === dm.id;
+      const online = peer.status === 'ONLINE' || peer.status === 'IDLE' || peer.status === 'DND';
+      const preview = last ? (last.messageType === 'TEXT' ? last.content : 'Adjunto') : (peer.customStatus || STATUS_LABELS[peer.status] || peer.bio || '');
+      const time = last ? fmtTime(last.createdAt) : '';
+      return `
+        <button type="button" class="chat-item ${active ? 'active' : ''}" data-peer-id="${peer.id}" ${dm ? `data-chat-id="${dm.id}"` : ''}>
+          <span class="avatar-wrap">
+            ${avatarHtml(peer)}
+            <span class="presence-dot ${online ? 'on' : ''}" title="${esc(STATUS_LABELS[peer.status] || '')}"></span>
+          </span>
+          <span class="chat-meta">
+            <span class="chat-title">${esc(peer.displayName)}</span>
+            <span class="chat-sub">${esc(preview)}</span>
+          </span>
+          <span class="chat-time">${time}</span>
+        </button>`;
+    }).join('');
+  } else {
+    if (!state.channels.length) {
+      els.chatList.innerHTML = '<div class="chat-empty">Aún no hay grupos en tu comunidad.<br>Los canales del servidor aparecerán aquí.</div>';
+      return;
+    }
+    els.chatList.innerHTML = state.channels.map(ch => {
+      const active = state.activeChat && state.activeChat.kind === 'channel' && state.activeChat.id === ch.id;
+      const members = (ch.community._count && ch.community._count.members) || 0;
+      return `
+        <button type="button" class="chat-item ${active ? 'active' : ''}" data-chat-id="${ch.id}">
+          <span class="avatar" style="background:var(--accent-2);color:#fff;">${esc(initials('#' + ch.name))}</span>
+          <span class="chat-meta">
+            <span class="chat-title"># ${esc(ch.name)}</span>
+            <span class="chat-sub">${esc(ch.community.name)} · ${members} integrantes</span>
+          </span>
+          <span class="chat-time"></span>
+        </button>`;
+    }).join('');
+  }
+
+  els.chatList.querySelectorAll('.chat-item').forEach(item => {
+    item.addEventListener('click', () => {
+      if (item.dataset.chatId) openChat({ kind: state.view === 'direct' ? 'direct' : 'channel', id: item.dataset.chatId });
+      else if (item.dataset.peerId) openDirectWith(item.dataset.peerId);
+    });
+  });
+}
+
+// ---------- Chats ----------
+async function openDirectWith(peerId) {
+  let dm = state.directChats.find(d => d.recipient && d.recipient.id === peerId);
+  if (!dm) {
+    try {
+      const res = await api('/direct-chats', { method: 'POST', body: { recipientId: peerId } });
+      const other = (res.directChat.members || []).find(m => m.userId !== state.user.id);
+      dm = {
+        id: res.directChat.id,
+        recipient: other ? other.user : null,
+        lastMessage: null,
+        updatedAt: res.directChat.updatedAt,
+      };
+      state.directChats.unshift(dm);
+    } catch (e) {
+      toast(e.message);
+      return;
+    }
+  }
+  await openChat({ kind: 'direct', id: dm.id });
+}
+
+async function openChat(chat) {
+  if (state.activeChat && state.activeChat.id !== chat.id) {
+    leaveChatRoom(state.activeChat);
+  }
+  state.activeChat = chat;
+  await loadMessages(chat);
+  connectChatRoom(chat);
+  renderList();
+  renderHeader(chat);
+  renderMessages();
+  els.emptyState.classList.add('hidden');
+  els.messages.classList.remove('hidden');
+  els.composer.classList.remove('hidden');
+  els.chatHeader.classList.remove('hidden');
+  scrollToBottom();
+}
+
+async function loadMessages(chat) {
+  const path = chat.kind === 'channel'
+    ? `/channels/${chat.id}/messages?limit=100`
+    : `/direct-chats/${chat.id}/messages?limit=100`;
+  const res = await api(path);
+  state.messages = res.data || [];
+}
+
+function upsertMessage(msg) {
+  const idx = state.messages.findIndex(m => m.id === msg.id);
+  if (idx >= 0) state.messages[idx] = msg;
+  else state.messages.push(msg);
+}
+
+function renderHeader(chat) {
+  if (chat.kind === 'direct') {
+    const dm = state.directChats.find(d => d.id === chat.id);
+    const peer = dm ? dm.recipient : null;
+    setAvatar(els.chatAvatar, peer);
+    els.chatName.textContent = peer ? peer.displayName : 'Usuario';
+    els.chatSub.dataset.base = peer ? `${ROLE_LABELS[peer.globalRole] || peer.globalRole} · ${STATUS_LABELS[peer.status] || 'Desconectado'}` : '';
+    els.chatSub.textContent = els.chatSub.dataset.base;
+    els.membersBtn.classList.add('hidden');
+  } else {
+    const ch = state.channels.find(c => c.id === chat.id);
+    els.chatAvatar.textContent = esc(initials('#' + ch.name));
+    els.chatAvatar.style.backgroundImage = '';
+    els.chatAvatar.style.cssText = 'background:var(--accent-2);color:#fff;';
+    const members = (ch.community._count && ch.community._count.members) || 0;
+    els.chatSub.dataset.base = `${ch.community.name} · ${members} integrantes`;
+    els.chatSub.textContent = els.chatSub.dataset.base;
+    els.membersBtn.classList.remove('hidden');
+  }
+}
+
+function renderHeaderSubTyping() {
+  const names = Object.values(state.typingUsers).filter(Boolean);
+  if (names.length) {
+    els.chatSub.textContent = `${names.join(', ')} ${names.length > 1 ? 'están' : 'está'} escribiendo...`;
+    return;
+  }
+  els.chatSub.textContent = els.chatSub.dataset.base || '';
+}
+
+function renderMessages() {
+  if (!state.messages.length) {
+    els.messagesInner.innerHTML = '<div class="chat-empty">No hay mensajes todavía. ¡Empieza la conversación!</div>';
+    return;
+  }
+  let lastDay = null;
+  els.messagesInner.innerHTML = state.messages.map(m => {
+    const day = dayLabel(m.createdAt);
+    const sep = day !== lastDay ? `<div class="day-sep">${esc(day)}</div>` : '';
+    lastDay = day;
+    const mine = m.senderId === state.user.id;
+    const sender = m.sender || {};
+    const filesHtml = (m.attachments || []).map(f => f.mimeType && f.mimeType.startsWith('image/')
+      ? `<img class="msg-image" src="${esc(f.fileUrl)}" alt="${esc(f.originalName)}" title="${esc(f.originalName)}" loading="lazy">`
+      : `<a class="file-chip" href="${esc(f.fileUrl)}" target="_blank" rel="noopener">
+           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+           <span class="fname">${esc(f.originalName)}</span>
+         </a>`).join('');
+    const reactions = (m.reactions && m.reactions.length)
+      ? `<div class="msg-reactions">${m.reactions.map(r => `<span class="reaction-chip" title="${esc(r.user ? r.user.displayName : '')}">${esc(r.emoji)}</span>`).join('')}</div>`
+      : '';
+    const edited = m.isEdited ? ' <span class="edited">(editado)</span>' : '';
+    return `${sep}
+      <div class="msg ${mine ? 'out' : 'in'}">
+        ${mine ? '' : avatarHtml(sender)}
+        <div class="bubble">
+          ${state.activeChat.kind === 'channel' && !mine ? `<span class="bubble-sender">${esc(sender.displayName || 'Usuario')}</span>` : ''}
+          ${m.content && m.messageType !== 'SYSTEM' ? `<div class="bubble-text">${esc(m.content)}${edited}</div>` : ''}
+          ${filesHtml}
+          ${reactions}
+          <span class="bubble-time">${fmtTime(m.createdAt)}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function scrollToBottom() {
+  requestAnimationFrame(() => { els.messages.scrollTop = els.messages.scrollHeight; });
+}
+
+// ---------- Envío de mensajes ----------
+async function sendMessage() {
+  const text = els.input.value.trim();
+  if ((!text && !pendingFiles.length) || !state.activeChat) return;
+
+  let attachments = null;
+  if (pendingFiles.length) {
+    attachments = [];
+    for (const a of pendingFiles) {
+      try {
+        const up = await uploadFile(a.file);
+        attachments.push(up);
+      } catch (e) {
+        toast('No se pudo subir ' + a.file.name);
+        return;
+      }
+    }
+  }
+
+  const content = text || (attachments && attachments.length ? attachments[0].originalName : '');
+  const body = { content };
+  if (state.activeChat.kind === 'channel') body.channelId = state.activeChat.id;
+  else body.directChatId = state.activeChat.id;
+  if (attachments && attachments.length) body.attachments = attachments;
+
+  els.input.value = '';
+  autoResize();
+  clearPendingFiles();
+  try {
+    const msg = await api('/messages', { method: 'POST', body });
+    upsertMessage(msg);
+    renderMessages();
+    renderList();
+    scrollToBottom();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+async function uploadFile(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  return api('/files/upload', { method: 'POST', body: fd, isForm: true });
+}
+
+function renderAttachments() {
+  if (!pendingFiles.length) {
+    els.attachmentsPreview.innerHTML = '';
+    return;
+  }
+  els.attachmentsPreview.innerHTML = pendingFiles.map((a, i) => `
+    <div class="attach-chip">
+      ${a.isImage
+        ? `<img src="${a.url}" alt="">`
+        : `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`}
+      <span class="name">${esc(a.file.name)}</span>
+      <button type="button" class="x" data-i="${i}" title="Quitar">&times;</button>
+    </div>`).join('');
+  els.attachmentsPreview.querySelectorAll('.x').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.i;
+      if (pendingFiles[i] && pendingFiles[i].url) URL.revokeObjectURL(pendingFiles[i].url);
+      pendingFiles.splice(i, 1);
+      renderAttachments();
+    });
+  });
+}
+
+function clearPendingFiles() {
+  pendingFiles.forEach(a => { if (a.url) URL.revokeObjectURL(a.url); });
+  pendingFiles.length = 0;
+  els.attachmentsPreview.innerHTML = '';
+}
+
+function autoResize() {
+  els.input.style.height = 'auto';
+  els.input.style.height = Math.min(els.input.scrollHeight, 140) + 'px';
+}
+
+// ---------- Modal: integrantes ----------
+async function openMembersModal() {
+  if (!state.activeChat || state.activeChat.kind !== 'channel') return;
+  const ch = state.channels.find(c => c.id === state.activeChat.id);
+  if (!ch) return;
+  state.modalMode = 'members';
+  els.modalTitle.textContent = `Integrantes · # ${ch.name}`;
+  els.modalBody.innerHTML = '<div class="chat-empty">Cargando integrantes...</div>';
+  els.modal.classList.remove('hidden');
+
+  let members = ch.community.members;
+  if (!members || !members.length) {
+    try {
+      const res = await api(`/communities/${ch.community.id}`);
+      members = res.members;
+      ch.community.members = members;
+    } catch (e) {
+      els.modalBody.innerHTML = `<div class="empty-note">${esc(e.message)}</div>`;
+      return;
+    }
+  }
+
+  const total = members.length;
+  els.modalBody.innerHTML = members.map(m => {
+    const u = m.user || {};
+    const isSelf = u.id === state.user.id;
+    const myRole = state.community && state.community.userRoleInCommunity;
+    const canManage = myRole === 'COMMUNITY_OWNER' || myRole === 'COMMUNITY_ADMIN';
+    const roleLabel = COMM_ROLE_LABELS[m.role] || m.role;
+    return `
+      <div class="member-row">
+        <span class="avatar-wrap">${avatarHtml(u)}<span class="presence-dot ${u.status === 'ONLINE' || u.status === 'IDLE' || u.status === 'DND' ? 'on' : ''}"></span></span>
+        <div class="member-row__info">
+          <strong>${esc(u.displayName || 'Usuario')}${isSelf ? ' (tú)' : ''}</strong>
+          <span>${esc(ROLE_LABELS[u.globalRole] || u.globalRole)}</span>
+          ${m.nickname ? `<span class="nick">${esc(m.nickname)}</span>` : ''}
+        </div>
+        <div class="row-actions">
+          ${m.role === 'COMMUNITY_OWNER' ? `<span class="role-chip admin">${esc(roleLabel)}</span>` : `<span class="role-chip">${esc(roleLabel)}</span>`}
+        </div>
+      </div>`;
+  }).join('') +
+  `<div class="empty-note">${total} integrante${total === 1 ? '' : 's'} en total · Roles del servidor.${canManage ? ' Eres administrador.' : ''}</div>`;
+}
+
+// ---------- Modal: cuenta ----------
+function openAccountModal() {
+  state.modalMode = 'account';
+  const u = state.user;
+  els.modalTitle.textContent = 'Mi cuenta';
+  els.modalBody.innerHTML = `
+    <div class="account-card">
+      ${avatarHtml(u, 'avatar')}
+      <strong>${esc(u.displayName)}</strong>
+      <span class="acc-role">${esc(ROLE_LABELS[u.globalRole] || u.globalRole)}</span>
+      <span class="role-chip admin">${esc(u.email)}</span>
+    </div>
+    <div class="form-field">
+      <label>Usuario</label>
+      <input type="text" value="${esc(u.username)}" readonly>
+    </div>
+    <div class="form-field">
+      <label>Estado</label>
+      <input type="text" value="${esc(STATUS_LABELS[u.status] || u.status)}" readonly>
+    </div>
+    ${u.bio ? `<div class="form-field"><label>Biografía</label><textarea readonly>${esc(u.bio)}</textarea></div>` : ''}
+    <div class="empty-note">Los usuarios que se registran desde la pantalla de bienvenida aparecen automáticamente en la comunidad.</div>`;
+  els.modal.classList.remove('hidden');
+}
+
+// ---------- Modal: crear grupo (canal) ----------
+function openCreateModal() {
+  if (!canManageCommunity()) {
+    toast('Solo los administradores del servidor pueden crear grupos.');
+    return;
+  }
+  state.modalMode = 'create';
+  els.modalTitle.textContent = 'Crear grupo de trabajo';
+  els.modalBody.innerHTML = `
+    <div class="form-field">
+      <label>Nombre del grupo</label>
+      <input type="text" id="cg-name" placeholder="Ej. Núcleo Frontend" maxlength="50">
+    </div>
+    <div class="form-field">
+      <label>Descripción / tema</label>
+      <input type="text" id="cg-desc" placeholder="Ej. Coordinación del equipo de frontend" maxlength="200">
+    </div>
+    <button id="cg-create" class="btn-primary">Crear grupo</button>`;
+  els.modalBody.querySelector('#cg-create').addEventListener('click', async () => {
+    const name = els.modalBody.querySelector('#cg-name').value.trim();
+    const topic = els.modalBody.querySelector('#cg-desc').value.trim();
+    if (!name) { toast('Escribe un nombre para el grupo.'); return; }
+    try {
+      const res = await api(`/communities/${state.community.id}/channels`, { method: 'POST', body: { name, topic } });
+      els.modal.classList.add('hidden');
+      await loadAppData();
+      renderAll();
+      await openChat({ kind: 'channel', id: res.channel.id });
+      toast(`Grupo "# ${res.channel.name}" creado.`);
+    } catch (e) { toast(e.message); }
+  });
+  els.modal.classList.remove('hidden');
+}
+
+// ---------- Vista / switch ----------
+function syncView() {
+  els.segBtns.forEach(b => b.classList.toggle('active', b.dataset.view === state.view));
+  els.viewSwitch.dataset.view = state.view;
+  closeChatIfNotInView();
+  renderList();
+}
+
+function closeChatIfNotInView() {
+  if (state.activeChat) {
+    const inView = state.view === 'direct'
+      ? state.activeChat.kind === 'direct'
+      : state.activeChat.kind === 'channel';
+    if (!inView) {
+      leaveChatRoom(state.activeChat);
+      state.activeChat = null;
+      state.messages = [];
+      clearPendingFiles();
+      els.chatHeader.classList.add('hidden');
+      els.membersBtn.classList.add('hidden');
+      els.messages.classList.add('hidden');
+      els.composer.classList.add('hidden');
+      els.emptyState.classList.remove('hidden');
+      els.emptyText.textContent = state.view === 'direct'
+        ? 'Selecciona un integrante de la comunidad para conversar.'
+        : 'Selecciona un grupo para ver sus conversaciones.';
+    }
+  }
+}
+
+// ---------- Render general ----------
+function renderAll() {
+  renderProfile();
+  renderProfileMenu();
+  syncView();
+  if (state.activeChat) renderHeader(state.activeChat);
+}
+
+// ---------- Init ----------
+function init() {
+  applyTheme(localStorage.getItem(STORE_KEY_THEME) || 'light');
+
+  // Tema
+  els.themeToggle.addEventListener('click', () => {
+    applyTheme(document.body.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+  });
+  els.authThemeToggle.addEventListener('click', () => {
+    applyTheme(document.body.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+  });
+
+  // Pestañas de autenticación
+  els.authTabs.forEach(btn => btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    els.authTabs.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    els.authTabsBox.dataset.tab = tab;
+    els.loginForm.classList.toggle('hidden', tab !== 'login');
+    els.registerForm.classList.toggle('hidden', tab !== 'register');
+    clearAuthError();
+  }));
+
+  // Formularios
+  els.loginForm.addEventListener('submit', e => { e.preventDefault(); doLogin(); });
+  els.registerForm.addEventListener('submit', e => { e.preventDefault(); doRegister(); });
+
+  // Menú de perfil
+  els.profileOpen.addEventListener('click', e => {
+    e.stopPropagation();
+    els.profileMenu.classList.toggle('hidden');
+  });
+  document.addEventListener('click', e => {
+    if (!els.profileMenu.contains(e.target) && !els.profileOpen.contains(e.target)) {
+      els.profileMenu.classList.add('hidden');
+    }
+  });
+
+  // Switch Comunidad / Grupos
+  els.segBtns.forEach(btn => btn.addEventListener('click', () => {
+    state.view = btn.dataset.view;
+    syncView();
+  }));
+
+  els.newGroupBtn.addEventListener('click', openCreateModal);
+
+  els.membersBtn.addEventListener('click', () => {
+    if (state.activeChat && state.activeChat.kind === 'channel') openMembersModal();
+  });
+
+  // Modal
+  els.modalClose.addEventListener('click', () => els.modal.classList.add('hidden'));
+  els.modal.addEventListener('click', e => { if (e.target === els.modal) els.modal.classList.add('hidden'); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') els.modal.classList.add('hidden'); });
+
+  // Composer
+  els.sendBtn.addEventListener('click', sendMessage);
+  els.input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+  els.input.addEventListener('input', () => {
+    autoResize();
+    emitTyping();
+  });
+
+  // Adjuntos
+  els.attachBtn.addEventListener('click', () => els.fileInput.click());
+  els.fileInput.addEventListener('change', () => {
+    for (const file of els.fileInput.files) {
+      const isImage = file.type.startsWith('image/');
+      pendingFiles.push({ file, url: isImage ? URL.createObjectURL(file) : null, isImage });
+    }
+    els.fileInput.value = '';
+    renderAttachments();
+  });
+
+  // Sesión inicial
+  if (state.token) {
+    api('/auth/me')
+      .then(({ user }) => { state.user = user; return enterApp(); })
+      .catch(() => { state.token = null; localStorage.removeItem(STORE_KEY_TOKEN); showAuth(); });
+  } else {
+    showAuth();
+  }
+}
+
+// ---------- Indicador "escribiendo..." ----------
+let typingTimer = null;
+let lastTypingSent = 0;
+function emitTyping() {
+  if (!state.socket || !state.socket.connected || !state.activeChat) return;
+  const now = Date.now();
+  if (now - lastTypingSent < 1500) return;
+  lastTypingSent = now;
+  const payload = state.activeChat.kind === 'channel'
+    ? { channelId: state.activeChat.id }
+    : { directChatId: state.activeChat.id };
+  state.socket.emit('typing:start', payload);
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => {
+    state.socket.emit('typing:stop', payload);
+  }, 2000);
+}
+
+document.addEventListener('DOMContentLoaded', init);
