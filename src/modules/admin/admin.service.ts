@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../database/prisma.service';
 import { UpdateUserRoleDto, UpdateUserStatusDto } from './dto/update-role.dto';
 import { GlobalRole } from '@prisma/client';
@@ -47,6 +48,9 @@ export class AdminService {
           globalRole: true,
           status: true,
           isActive: true,
+          mustChangePassword: true,
+          passwordChangedAt: true,
+          temporaryPasswordExpiresAt: true,
           authProvider: true,
           createdAt: true,
           _count: {
@@ -102,29 +106,24 @@ export class AdminService {
         username: true,
         displayName: true,
         globalRole: true,
-        updatedAt: true,
+        isActive: true,
       },
     });
 
-    // Create Audit Log
     await this.prisma.auditLog.create({
       data: {
         userId: adminId,
         action: 'USER_ROLE_UPDATED',
         details: JSON.stringify({
           targetUserId,
-          targetUserEmail: targetUser.email,
-          previousRole: targetUser.globalRole,
+          oldRole: targetUser.globalRole,
           newRole: dto.role,
-          reason: dto.reason || 'Actualización administrativa de rol',
         }),
       },
     });
 
-    this.logger.log(`Role updated for user ${targetUser.email} to ${dto.role} by admin ${adminId}`);
-
     return {
-      message: `Rol del usuario ${targetUser.username} actualizado exitosamente a ${dto.role}`,
+      message: `Rol de ${targetUser.email} actualizado a ${dto.role}`,
       user: updatedUser,
     };
   }
@@ -133,8 +132,9 @@ export class AdminService {
     targetUserId: string,
     dto: UpdateUserStatusDto,
     adminId: string,
+    adminRole: GlobalRole,
   ) {
-    if (targetUserId === adminId) {
+    if (targetUserId === adminId && !dto.isActive) {
       throw new BadRequestException('No puedes desactivar tu propia cuenta de administrador');
     }
 
@@ -146,6 +146,10 @@ export class AdminService {
       throw new NotFoundException('Usuario no encontrado');
     }
 
+    if (targetUser.globalRole === GlobalRole.SUPERADMIN && adminRole !== GlobalRole.SUPERADMIN) {
+      throw new ForbiddenException('Solo un SUPERADMIN puede desactivar la cuenta de otro SUPERADMIN');
+    }
+
     const updatedUser = await this.prisma.user.update({
       where: { id: targetUserId },
       data: { isActive: dto.isActive },
@@ -153,25 +157,26 @@ export class AdminService {
         id: true,
         email: true,
         username: true,
+        displayName: true,
+        globalRole: true,
         isActive: true,
       },
     });
 
-    // If deactivated, revoke all active sessions
     if (!dto.isActive) {
       await this.prisma.refreshToken.deleteMany({
         where: { userId: targetUserId },
       });
     }
 
-    // Audit log
     await this.prisma.auditLog.create({
       data: {
         userId: adminId,
         action: dto.isActive ? 'USER_ACTIVATED' : 'USER_DEACTIVATED',
         details: JSON.stringify({
           targetUserId,
-          reason: dto.reason || 'Cambio de estado administrativo',
+          previousStatus: targetUser.isActive,
+          newStatus: dto.isActive,
         }),
       },
     });
@@ -179,6 +184,84 @@ export class AdminService {
     return {
       message: `Estado de la cuenta ${targetUser.email} actualizado a ${dto.isActive ? 'Activo' : 'Inactivo'}`,
       user: updatedUser,
+    };
+  }
+
+  async generateTemporaryPassword(
+    targetUserId: string,
+    adminId: string,
+    adminRole: GlobalRole,
+  ) {
+    const targetUser = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (
+      targetUser.globalRole === GlobalRole.SUPERADMIN &&
+      adminRole !== GlobalRole.SUPERADMIN
+    ) {
+      throw new ForbiddenException(
+        'Solo un SUPERADMIN puede restablecer la contraseña de otro SUPERADMIN',
+      );
+    }
+
+    // Generar contraseña temporal segura: ej. SyB#8kL9v!2
+    const prefix = 'SyB';
+    const randChars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    const symbols = '!@#$%&*';
+    let middle = '';
+    for (let i = 0; i < 6; i++) {
+      middle += randChars.charAt(Math.floor(Math.random() * randChars.length));
+    }
+    const symbol = symbols.charAt(Math.floor(Math.random() * symbols.length));
+    const num = Math.floor(Math.random() * 90 + 10);
+    const tempPassword = `${prefix}${symbol}${middle}${num}!`;
+
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+    const temporaryPasswordExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+    await this.prisma.user.update({
+      where: { id: targetUserId },
+      data: {
+        passwordHash,
+        mustChangePassword: true,
+        temporaryPasswordExpiresAt,
+      },
+    });
+
+    // Invalidar tokens previos
+    await this.prisma.refreshToken.deleteMany({
+      where: { userId: targetUserId },
+    });
+
+    // Registrar en auditoría
+    await this.prisma.auditLog.create({
+      data: {
+        userId: adminId,
+        action: 'USER_TEMPORARY_PASSWORD_GENERATED',
+        details: JSON.stringify({
+          targetUserId,
+          targetEmail: targetUser.email,
+          temporaryPasswordExpiresAt,
+        }),
+      },
+    });
+
+    return {
+      message: `Contraseña temporal generada con éxito para ${targetUser.email}`,
+      targetUser: {
+        id: targetUser.id,
+        email: targetUser.email,
+        username: targetUser.username,
+        displayName: targetUser.displayName,
+      },
+      temporaryPassword: tempPassword,
+      expiresAt: temporaryPasswordExpiresAt,
+      mustChangePassword: true,
     };
   }
 

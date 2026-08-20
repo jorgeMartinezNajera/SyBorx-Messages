@@ -60,10 +60,13 @@ model User {
   globalRole    GlobalRole   @default(DEVELOPER)
   status        UserStatus   @default(OFFLINE)
   customStatus  String?
-  isActive      Boolean      @default(true)
-  authProvider  AuthProvider @default(LOCAL)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  isActive                   Boolean      @default(true)
+  mustChangePassword         Boolean      @default(false)
+  passwordChangedAt          DateTime     @default(now())
+  temporaryPasswordExpiresAt DateTime?
+  authProvider               AuthProvider @default(LOCAL)
+  createdAt                  DateTime     @default(now())
+  updatedAt                  DateTime     @updatedAt
 
   refreshTokens          RefreshToken[]
   ownedCommunities       Community[]          @relation("CommunityOwner")

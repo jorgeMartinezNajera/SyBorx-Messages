@@ -3,6 +3,7 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -12,6 +13,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { GlobalRole, CommunityRole } from '@prisma/client';
 
 @Injectable()
@@ -59,6 +61,8 @@ export class AuthService {
         avatarUrl,
         bio,
         globalRole,
+        mustChangePassword: false,
+        passwordChangedAt: new Date(),
       },
       select: {
         id: true,
@@ -69,6 +73,7 @@ export class AuthService {
         bio: true,
         globalRole: true,
         status: true,
+        mustChangePassword: true,
         createdAt: true,
       },
     });
@@ -93,6 +98,7 @@ export class AuthService {
     return {
       message: 'Usuario registrado exitosamente',
       user,
+      mustChangePassword: false,
       ...tokens,
     };
   }
@@ -122,6 +128,12 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
+    // Verificar si la contraseña expiró por política de 6 meses (180 días)
+    const isOverSixMonths =
+      user.passwordChangedAt &&
+      Date.now() - new Date(user.passwordChangedAt).getTime() > 180 * 24 * 60 * 60 * 1000;
+    const mustChangePassword = Boolean(user.mustChangePassword || isOverSixMonths);
+
     const tokens = await this.generateTokens(
       user.id,
       user.email,
@@ -132,7 +144,10 @@ export class AuthService {
     );
 
     return {
-      message: 'Inicio de sesión exitoso',
+      message: mustChangePassword
+        ? 'Inicio de sesión exitoso. Se requiere actualizar la contraseña por seguridad.'
+        : 'Inicio de sesión exitoso',
+      mustChangePassword,
       user: {
         id: user.id,
         email: user.email,
@@ -143,8 +158,55 @@ export class AuthService {
         globalRole: user.globalRole,
         status: user.status,
         customStatus: user.customStatus,
+        mustChangePassword,
       },
       ...tokens,
+    };
+  }
+
+  async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
+    const { currentPassword, newPassword } = changePasswordDto;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (currentPassword) {
+      const isCurrentValid = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isCurrentValid) {
+        throw new BadRequestException('La contraseña actual o temporal proporcionada es incorrecta');
+      }
+    }
+
+    const isSameAsOld = await bcrypt.compare(newPassword, user.passwordHash);
+    if (isSameAsOld) {
+      throw new BadRequestException('La nueva contraseña no puede ser idéntica a la anterior');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash,
+        mustChangePassword: false,
+        passwordChangedAt: new Date(),
+        temporaryPasswordExpiresAt: null,
+      },
+    });
+
+    // Invalida tokens previos
+    await this.prisma.refreshToken.deleteMany({
+      where: { userId },
+    });
+
+    return {
+      message: 'Contraseña actualizada exitosamente',
+      mustChangePassword: false,
     };
   }
 

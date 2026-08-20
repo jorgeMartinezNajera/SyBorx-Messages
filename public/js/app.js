@@ -53,6 +53,15 @@ const els = {
   meAvatar: $('#me-avatar'),
   meName: $('#me-name'),
   meRole: $('#me-role'),
+  adminPanelBtn: $('#admin-panel-btn'),
+  forcePwdModal: $('#force-pwd-modal'),
+  forcePwdForm: $('#force-pwd-form'),
+  forcePwdNew: $('#force-pwd-new'),
+  forcePwdConfirm: $('#force-pwd-confirm'),
+  forcePwdSubmit: $('#force-pwd-submit'),
+  forcePwdError: $('#force-pwd-error'),
+  pwdBar: $('#pwd-bar'),
+  pwdStrengthText: $('#pwd-strength-text'),
   themeToggle: $('#theme-toggle'),
   logoutBtn: $('#logout-btn'),
   viewSwitch: $('#view-switch'),
@@ -267,7 +276,85 @@ async function onAuthenticated(res) {
   state.user = res.user;
   localStorage.setItem(STORE_KEY_TOKEN, state.token);
   clearAuthError();
+
+  if (res.mustChangePassword || (res.user && res.user.mustChangePassword)) {
+    showForcePasswordModal();
+    return;
+  }
   await enterApp();
+}
+
+function showForcePasswordModal() {
+  els.forcePwdModal.classList.remove('hidden');
+  els.forcePwdNew.value = '';
+  els.forcePwdConfirm.value = '';
+  els.forcePwdError.classList.add('hidden');
+  validatePasswordStrength();
+}
+
+function validatePasswordStrength() {
+  const val = els.forcePwdNew.value || '';
+  const confirmVal = els.forcePwdConfirm.value || '';
+
+  const hasLen = val.length >= 8;
+  const hasUpper = /[A-Z]/.test(val);
+  const hasLower = /[a-z]/.test(val);
+  const hasNum = /\d/.test(val);
+  const hasSym = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(val);
+  const matches = Boolean(val && confirmVal && val === confirmVal);
+
+  setRuleStatus($('#rule-len'), hasLen);
+  setRuleStatus($('#rule-upper'), hasUpper);
+  setRuleStatus($('#rule-lower'), hasLower);
+  setRuleStatus($('#rule-num'), hasNum);
+  setRuleStatus($('#rule-sym'), hasSym);
+  setRuleStatus($('#rule-match'), matches);
+
+  const score = [hasLen, hasUpper, hasLower, hasNum, hasSym].filter(Boolean).length;
+  els.pwdBar.className = 'pwd-bar';
+  if (!val) {
+    els.pwdStrengthText.textContent = 'Seguridad: Ingresa una contraseña';
+  } else if (score <= 2) {
+    els.pwdBar.classList.add('weak');
+    els.pwdStrengthText.textContent = 'Seguridad: Débil (insegura)';
+  } else if (score === 3 || score === 4) {
+    els.pwdBar.classList.add('fair');
+    els.pwdStrengthText.textContent = 'Seguridad: Media (requiere más requisitos)';
+  } else if (score === 5) {
+    els.pwdBar.classList.add('strong');
+    els.pwdStrengthText.textContent = 'Seguridad: Fuerte y Segura ✓';
+  }
+
+  const allValid = hasLen && hasUpper && hasLower && hasNum && hasSym && matches;
+  els.forcePwdSubmit.disabled = !allValid;
+}
+
+function setRuleStatus(el, isValid) {
+  if (!el) return;
+  el.classList.toggle('valid', isValid);
+  const ico = el.querySelector('.rule-ico');
+  if (ico) ico.textContent = isValid ? '✓' : '✕';
+}
+
+async function doForceChangePassword(e) {
+  if (e) e.preventDefault();
+  const newPassword = els.forcePwdNew.value;
+  setBusy(els.forcePwdSubmit, true, 'Guardando nueva contraseña...');
+  try {
+    await api('/auth/change-password', {
+      method: 'POST',
+      body: { newPassword },
+    });
+    els.forcePwdModal.classList.add('hidden');
+    if (state.user) state.user.mustChangePassword = false;
+    toast('¡Contraseña actualizada exitosamente!');
+    await enterApp();
+  } catch (err) {
+    els.forcePwdError.textContent = err.message;
+    els.forcePwdError.classList.remove('hidden');
+  } finally {
+    setBusy(els.forcePwdSubmit, false, 'Guardar y Acceder al Messenger');
+  }
 }
 
 function showAuth() {
@@ -476,6 +563,86 @@ function renderProfile() {
   setAvatar(els.meAvatar, u);
   els.meName.textContent = u.displayName;
   els.meRole.textContent = ROLE_LABELS[u.globalRole] || u.globalRole;
+  const isAdmin = u.globalRole === 'ADMIN' || u.globalRole === 'SUPERADMIN';
+  if (els.adminPanelBtn) {
+    els.adminPanelBtn.classList.toggle('hidden', !isAdmin);
+  }
+}
+
+async function openAdminPanelModal() {
+  els.modalTitle.textContent = 'Gestión de Usuarios y Contraseñas Temporales';
+  els.modalBody.innerHTML = '<div class="chat-empty">Cargando usuarios del sistema...</div>';
+  els.modal.classList.remove('hidden');
+
+  try {
+    const res = await api('/admin/users?limit=100');
+    const users = res.data || [];
+
+    if (!users.length) {
+      els.modalBody.innerHTML = '<div class="chat-empty">No se encontraron usuarios.</div>';
+      return;
+    }
+
+    els.modalBody.innerHTML = `
+      <div style="margin-bottom: 14px; font-size: 12.5px; color: var(--text-muted); line-height: 1.4;">
+        Genera una <strong>contraseña temporal segura de 24 horas</strong> para un usuario que olvidó su clave o requiere restablecimiento. Al ingresar, el usuario estará obligado a crear su nueva contraseña.
+      </div>
+      <div id="admin-temp-pwd-result"></div>
+      <div class="admin-users-list">
+        ${users.map(u => `
+          <div class="admin-user-row" data-user-id="${u.id}">
+            <div class="admin-user-info">
+              <strong>${esc(u.displayName)} (@${esc(u.username)})</strong>
+              <span>${esc(u.email)} · <em>${ROLE_LABELS[u.globalRole] || u.globalRole}</em> ${u.mustChangePassword ? '· <span style="color:var(--danger);font-weight:600;">[Cambio de Clave Pendiente]</span>' : ''}</span>
+            </div>
+            <div class="admin-user-actions">
+              <button type="button" class="btn-temp-pwd" data-user-id="${u.id}" data-user-name="${esc(u.displayName)}" data-user-email="${esc(u.email)}">
+                🔑 Clave Temporal
+              </button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    els.modalBody.querySelectorAll('.btn-temp-pwd').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const uid = btn.dataset.userId;
+        const uname = btn.dataset.userName;
+        const uemail = btn.dataset.userEmail;
+        if (!confirm(`¿Generar contraseña temporal para ${uname} (${uemail})?`)) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Generando...';
+        try {
+          const result = await api(`/admin/users/${uid}/temp-password`, { method: 'POST' });
+          const box = els.modalBody.querySelector('#admin-temp-pwd-result');
+          box.innerHTML = `
+            <div class="temp-pwd-alert">
+              <strong>✓ Contraseña Temporal Generada para ${esc(result.targetUser.email)}</strong>
+              <div class="temp-pwd-copy-box">
+                <code id="temp-code">${esc(result.temporaryPassword)}</code>
+                <button type="button" class="btn-copy" id="btn-copy-temp">Copiar Clave</button>
+              </div>
+              <span style="font-size: 11px; color: var(--text-muted);">Pásale esta contraseña al usuario. Al iniciar sesión, el sistema le obligará a crear una nueva clave con todos los requisitos de seguridad.</span>
+            </div>
+          `;
+          box.querySelector('#btn-copy-temp').addEventListener('click', () => {
+            navigator.clipboard.writeText(result.temporaryPassword);
+            toast('¡Contraseña temporal copiada al portapapeles!');
+          });
+          toast(`Clave generada para ${uname}`);
+        } catch (e) {
+          toast(e.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '🔑 Clave Temporal';
+        }
+      });
+    });
+  } catch (e) {
+    els.modalBody.innerHTML = `<div class="chat-empty" style="color:var(--danger);">${esc(e.message)}</div>`;
+  }
 }
 
 function canManageCommunity() {
@@ -1009,10 +1176,27 @@ function init() {
     renderAttachments();
   });
 
+  // Cambio forzoso de contraseña
+  els.forcePwdNew.addEventListener('input', validatePasswordStrength);
+  els.forcePwdConfirm.addEventListener('input', validatePasswordStrength);
+  els.forcePwdForm.addEventListener('submit', doForceChangePassword);
+
+  // Panel de administración
+  if (els.adminPanelBtn) {
+    els.adminPanelBtn.addEventListener('click', openAdminPanelModal);
+  }
+
   // Sesión inicial
   if (state.token) {
     api('/auth/me')
-      .then(({ user }) => { state.user = user; return enterApp(); })
+      .then(({ user }) => {
+        state.user = user;
+        if (user.mustChangePassword) {
+          showForcePasswordModal();
+        } else {
+          return enterApp();
+        }
+      })
       .catch(() => { state.token = null; localStorage.removeItem(STORE_KEY_TOKEN); showAuth(); });
   } else {
     showAuth();

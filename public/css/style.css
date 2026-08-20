@@ -992,3 +992,236 @@ input, textarea, select { font-family: var(--font); }
   font-size: 13px;
   resize: none;
 }
+
+/* ===================== MODAL DE CAMBIO OBLIGATORIO DE CONTRASEÑA ===================== */
+.force-pwd-card {
+  max-width: 460px;
+  width: 90%;
+  animation: pop .22s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+.force-pwd-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.force-pwd-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #3A78E8, #1E4CA6);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(58, 120, 232, .4);
+}
+
+[data-theme="light"] .force-pwd-icon {
+  background: linear-gradient(135deg, #1B2A4A, #2E4A7A);
+  box-shadow: 0 4px 16px rgba(27, 42, 74, .3);
+}
+
+.force-pwd-head h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.force-pwd-head p {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+.force-pwd-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+/* Medidor de Fuerza de Contraseña */
+.pwd-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pwd-bar-bg {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--chip);
+  overflow: hidden;
+}
+
+.pwd-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  transition: width .3s ease, background-color .3s ease;
+}
+
+.pwd-bar.weak { width: 25%; background: var(--danger); }
+.pwd-bar.fair { width: 50%; background: #E2B93B; }
+.pwd-bar.good { width: 75%; background: #2F80ED; }
+.pwd-bar.strong { width: 100%; background: var(--success); }
+
+.pwd-strength-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Lista de Reglas */
+.pwd-rules {
+  list-style: none;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--input-bg);
+  border: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pwd-rules li {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: color .2s ease;
+}
+
+.pwd-rules li .rule-ico {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--danger);
+  width: 14px;
+  text-align: center;
+}
+
+.pwd-rules li.valid {
+  color: var(--text);
+}
+
+.pwd-rules li.valid .rule-ico {
+  color: var(--success);
+}
+
+/* Panel de Admin: Usuarios y Claves Temporales */
+.admin-user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--input-bg);
+  border: 1px solid var(--glass-border);
+  margin-bottom: 8px;
+}
+
+.admin-user-row:last-child { margin-bottom: 0; }
+
+.admin-user-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.admin-user-info strong {
+  font-size: 13.5px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-user-info span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.admin-user-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-temp-pwd {
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, #3A78E8, #1E4CA6);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(58, 120, 232, .3);
+  transition: transform .2s ease, filter .2s ease;
+}
+
+[data-theme="light"] .btn-temp-pwd {
+  background: linear-gradient(135deg, #1B2A4A, #2E4A7A);
+  box-shadow: 0 2px 8px rgba(27, 42, 74, .25);
+}
+
+.btn-temp-pwd:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+.temp-pwd-alert {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(46, 125, 79, .12);
+  border: 1px solid var(--success);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.temp-pwd-alert strong {
+  font-size: 12px;
+  color: var(--success);
+}
+
+.temp-pwd-copy-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--glass-strong);
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+}
+
+.temp-pwd-copy-box code {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--accent-2);
+}
+
+.btn-copy {
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--chip);
+  color: var(--text);
+  border: none;
+  cursor: pointer;
+}
+
+.btn-copy:hover {
+  background: var(--hover);
+}

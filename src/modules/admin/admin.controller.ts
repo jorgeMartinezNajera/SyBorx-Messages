@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Param,
   Body,
@@ -55,8 +56,26 @@ export class AdminController {
     @Param('id') targetUserId: string,
     @Body() dto: UpdateUserStatusDto,
     @CurrentUser('id') adminId: string,
+    @CurrentUser('globalRole') adminRole: GlobalRole,
   ) {
-    return this.adminService.updateUserStatus(targetUserId, dto, adminId);
+    return this.adminService.updateUserStatus(targetUserId, dto, adminId, adminRole);
+  }
+
+  @Post('users/:id/temp-password')
+  @ApiOperation({
+    summary:
+      'Generar una contraseña temporal segura para un usuario y obligar a cambio de clave en el próximo inicio de sesión',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Contraseña temporal generada exitosamente y registrada en auditoría',
+  })
+  async generateTemporaryPassword(
+    @Param('id') targetUserId: string,
+    @CurrentUser('id') adminId: string,
+    @CurrentUser('globalRole') adminRole: GlobalRole,
+  ) {
+    return this.adminService.generateTemporaryPassword(targetUserId, adminId, adminRole);
   }
 
   @Get('audit-logs')

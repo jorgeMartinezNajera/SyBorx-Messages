@@ -14,6 +14,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -44,6 +45,24 @@ export class AuthController {
     @Headers('user-agent') userAgent: string,
   ) {
     return this.authService.login(loginDto, ipAddress, userAgent);
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary:
+      'Actualizar contraseña (obligatorio tras contraseña temporal, expiración semestral o cambio voluntario)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Contraseña actualizada y sesiones anteriores revocadas',
+  })
+  async changePassword(
+    @CurrentUser('id') userId: string,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(userId, changePasswordDto);
   }
 
   @Public()
