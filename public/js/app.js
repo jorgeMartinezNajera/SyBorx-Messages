@@ -679,12 +679,16 @@ function renderMessages() {
     const mine = m.senderId === state.user.id;
     const sender = m.sender || {};
     const isRecentlyReceived = m.id === state.recentMsgId && !mine;
-    const filesHtml = (m.attachments || []).map(f => f.mimeType && f.mimeType.startsWith('image/')
-      ? `<img class="msg-image" src="${esc(f.fileUrl)}" alt="${esc(f.originalName)}" title="${esc(f.originalName)}" loading="lazy">`
-      : `<a class="file-chip" href="${esc(f.fileUrl)}" target="_blank" rel="noopener">
-           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-           <span class="fname">${esc(f.originalName)}</span>
-         </a>`).join('');
+    const filesHtml = (m.attachments || []).map(f => {
+      const url = fixFileUrl(f.fileUrl);
+      const isImg = (f.mimeType && f.mimeType.startsWith('image/')) || /\.(png|jpe?g|gif|webp|svg)$/i.test(f.originalName || '');
+      return isImg
+        ? `<img class="msg-image" src="${esc(url)}" alt="${esc(f.originalName)}" title="${esc(f.originalName)}" loading="lazy" onclick="window.open('${esc(url)}', '_blank')">`
+        : `<a class="file-chip" href="${esc(url)}" target="_blank" rel="noopener">
+             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+             <span class="fname">${esc(f.originalName)}</span>
+           </a>`;
+    }).join('');
     const reactions = (m.reactions && m.reactions.length)
       ? `<div class="msg-reactions">${m.reactions.map(r => `<span class="reaction-chip" title="${esc(r.user ? r.user.displayName : '')}">${esc(r.emoji)}</span>`).join('')}</div>`
       : '';
@@ -701,6 +705,13 @@ function renderMessages() {
         </div>
       </div>`;
   }).join('');
+}
+
+function fixFileUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('http://localhost:3001/uploads/')) return url.replace('http://localhost:3001/uploads/', '/uploads/');
+  if (url.startsWith('http://localhost:3000/uploads/')) return url.replace('http://localhost:3000/uploads/', '/uploads/');
+  return url;
 }
 
 function scrollToBottom() {
