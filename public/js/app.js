@@ -725,7 +725,7 @@ function renderList() {
           </span>
           <span class="chat-right-meta">
             <span class="chat-time">${time}</span>
-            ${unread > 0 ? `<span class="unread-badge">${unread}</span>' : ''}
+            ${unread > 0 ? `<span class="unread-badge">${unread}</span>` : ''}
           </span>
         </button>`;
     }).join('');
@@ -765,7 +765,7 @@ function renderList() {
           </span>
           <span class="chat-right-meta">
             <span class="chat-time"></span>
-            ${unread > 0 ? `<span class="unread-badge">${unread}</span>' : ''}
+            ${unread > 0 ? `<span class="unread-badge">${unread}</span>` : ''}
           </span>
         </button>`;
     }).join('');
@@ -782,7 +782,7 @@ function renderList() {
     }
 
     if (!peers.length) {
-      els.chatList.innerHTML = `<div class="chat-empty">No se encontraron contactos en el directorio con "${esc(query)}".</div>';
+      els.chatList.innerHTML = `<div class="chat-empty">No se encontraron contactos en el directorio con "${esc(query)}".</div>`;
       return;
     }
 
