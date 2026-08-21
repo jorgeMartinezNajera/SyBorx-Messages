@@ -1388,6 +1388,30 @@ function init() {
     renderAttachments();
   });
 
+  // Toggle mostrar / ocultar contraseña
+  document.querySelectorAll('.pwd-eye-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.target;
+      const input = document.getElementById(targetId);
+      if (!input) return;
+      const isPwd = input.type === 'password';
+      input.type = isPwd ? 'text' : 'password';
+      const openIco = btn.querySelector('.eye-open');
+      const closedIco = btn.querySelector('.eye-closed');
+      if (openIco) openIco.classList.toggle('hidden', isPwd);
+      if (closedIco) closedIco.classList.toggle('hidden', !isPwd);
+    });
+  });
+
+  // Copia rápida de contraseña de prueba
+  const quickCopy = document.getElementById('quick-copy-pwd');
+  if (quickCopy) {
+    quickCopy.addEventListener('click', () => {
+      navigator.clipboard.writeText('Password123!');
+      toast('Contraseña copiada al portapapeles');
+    });
+  }
+
   // Cambio forzoso de contraseña
   els.forcePwdNew.addEventListener('input', validatePasswordStrength);
   els.forcePwdConfirm.addEventListener('input', validatePasswordStrength);
