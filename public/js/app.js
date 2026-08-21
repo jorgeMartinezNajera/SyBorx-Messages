@@ -443,9 +443,29 @@ function connectSocket() {
     if (state.activeChat) connectChatRoom(state.activeChat);
   });
   state.socket.on('message:new', onNewMessage);
+  state.socket.on('message:status', onMessageStatus);
   state.socket.on('user:presence', onPresence);
   state.socket.on('user:typing', onTyping);
   state.socket.on('disconnect', () => { state.joinedRoom = null; });
+}
+
+function onMessageStatus(data) {
+  if (!data) return;
+  let changed = false;
+  state.messages.forEach(m => {
+    if (data.messageId && m.id === data.messageId) {
+      m.deliveryStatus = data.status;
+      changed = true;
+    } else if (data.directChatId && m.directChatId === data.directChatId && m.senderId === state.user.id) {
+      if (data.status === 'READ') {
+        m.deliveryStatus = 'READ';
+        changed = true;
+      }
+    }
+  });
+  if (changed) {
+    renderMessages();
+  }
 }
 
 function connectChatRoom(chat) {
@@ -469,6 +489,14 @@ function onNewMessage(msg) {
   const isActive = state.activeChat &&
     ((state.activeChat.kind === 'channel' && msg.channelId === state.activeChat.id) ||
      (state.activeChat.kind === 'direct' && msg.directChatId === state.activeChat.id));
+
+  if (!isFromMe && state.socket && state.socket.connected) {
+    if (isActive) {
+      state.socket.emit('message:read', { messageId: msg.id, directChatId: msg.directChatId, channelId: msg.channelId });
+    } else {
+      state.socket.emit('message:delivered', { messageId: msg.id, directChatId: msg.directChatId, channelId: msg.channelId });
+    }
+  }
 
   if (isActive) {
     if (!isFromMe) {
@@ -974,6 +1002,13 @@ async function openChat(chat) {
 
   await loadMessages(chat);
   connectChatRoom(chat);
+
+  // Emitir lectura de mensajes
+  if (state.socket && state.socket.connected) {
+    const payload = chat.kind === 'channel' ? { channelId: chat.id } : { directChatId: chat.id };
+    state.socket.emit('message:read', payload);
+  }
+
   renderList();
   renderHeader(chat);
   renderMessages();
@@ -1023,6 +1058,17 @@ function renderHeader(chat) {
   }
 }
 
+function statusHtml(deliveryStatus) {
+  const status = deliveryStatus || 'SENT';
+  if (status === 'READ') {
+    return `<span class="msg-status status-read" title="Leído: Conexión completada y visto"><span class="status-liquid-droplet"></span></span>`;
+  }
+  if (status === 'DELIVERED') {
+    return `<span class="msg-status status-delivered" title="Entregado: Núcleo de energía blanco en destino"><span class="status-energy-core"></span></span>`;
+  }
+  return `<span class="msg-status status-sent" title="Enviado: Luz tenue en tránsito"><span class="status-glow-dot"></span></span>`;
+}
+
 function renderMessages() {
   if (!state.messages.length) {
     els.messagesInner.innerHTML = '<div class="chat-empty">No hay mensajes todavía. ¡Empieza la conversación!</div>';
@@ -1058,7 +1104,10 @@ function renderMessages() {
           ${m.content && m.messageType !== 'SYSTEM' ? `<div class="bubble-text">${esc(m.content)}${edited}</div>` : ''}
           ${filesHtml}
           ${reactions}
-          <span class="bubble-time">${fmtTime(m.createdAt)}</span>
+          <div class="bubble-footer">
+            <span class="bubble-time">${fmtTime(m.createdAt)}</span>
+            ${mine ? statusHtml(m.deliveryStatus) : ''}
+          </div>
         </div>
       </div>`;
   }).join('');

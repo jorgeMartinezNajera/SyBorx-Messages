@@ -191,6 +191,78 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
   }
 
+  @SubscribeMessage('message:read')
+  async handleMessageRead(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { directChatId?: string; channelId?: string; messageId?: string },
+  ) {
+    const user = client.data.user;
+    if (!user) return;
+
+    try {
+      if (data.directChatId) {
+        await this.prisma.message.updateMany({
+          where: {
+            directChatId: data.directChatId,
+            senderId: { not: user.id },
+            deliveryStatus: { not: 'READ' },
+          },
+          data: {
+            deliveryStatus: 'READ',
+            readAt: new Date(),
+          },
+        });
+
+        this.server.to(`direct_chat_${data.directChatId}`).emit('message:status', {
+          directChatId: data.directChatId,
+          readByUserId: user.id,
+          status: 'READ',
+        });
+      } else if (data.channelId) {
+        this.server.to(`channel_${data.channelId}`).emit('message:status', {
+          channelId: data.channelId,
+          readByUserId: user.id,
+          status: 'READ',
+        });
+      }
+    } catch (err) {
+      this.logger.error('Error actualizando estado de lectura', err);
+    }
+  }
+
+  @SubscribeMessage('message:delivered')
+  async handleMessageDelivered(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { messageId: string; directChatId?: string; channelId?: string },
+  ) {
+    const user = client.data.user;
+    if (!user || !data.messageId) return;
+
+    try {
+      await this.prisma.message.updateMany({
+        where: {
+          id: data.messageId,
+          deliveryStatus: 'SENT',
+        },
+        data: {
+          deliveryStatus: 'DELIVERED',
+        },
+      });
+
+      const room = data.directChatId ? `direct_chat_${data.directChatId}` : (data.channelId ? `channel_${data.channelId}` : null);
+      if (room) {
+        this.server.to(room).emit('message:status', {
+          messageId: data.messageId,
+          directChatId: data.directChatId,
+          channelId: data.channelId,
+          status: 'DELIVERED',
+        });
+      }
+    } catch (err) {
+      this.logger.error('Error actualizando estado de entrega', err);
+    }
+  }
+
   // Method to emit new messages from MessagesService or anywhere in backend
   emitNewMessage(message: any) {
     if (message.channelId) {

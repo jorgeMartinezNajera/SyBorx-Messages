@@ -49,6 +49,12 @@ enum MessageType {
   AI_BOT
 }
 
+enum MessageDeliveryStatus {
+  SENT
+  DELIVERED
+  READ
+}
+
 model User {
   id            String       @id @default(uuid())
   email         String       @unique
@@ -177,11 +183,13 @@ model Message {
   parentMessage   Message?    @relation("MessageReplies", fields: [parentMessageId], references: [id], onDelete: SetNull)
   replies         Message[]   @relation("MessageReplies")
   content         String
-  messageType     MessageType @default(TEXT)
-  isEdited        Boolean     @default(false)
-  isPinned        Boolean     @default(false)
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  messageType     MessageType           @default(TEXT)
+  deliveryStatus  MessageDeliveryStatus @default(SENT)
+  readAt          DateTime?
+  isEdited        Boolean               @default(false)
+  isPinned        Boolean               @default(false)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
 
   attachments Attachment[]
   reactions   MessageReaction[]
