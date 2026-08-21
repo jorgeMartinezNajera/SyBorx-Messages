@@ -912,7 +912,10 @@ input, textarea, select { font-family: var(--font); }
   border-bottom: 1px solid var(--glass-border);
 }
 .modal-head h3 { font-size: 18px; font-weight: 600; }
-.modal-body { padding: 20px 26px 24px; overflow-y: auto; }
+.modal-body { 
+  padding: 20px 26px 24px !important; 
+  overflow-y: auto; 
+}
 
 .member-row {
   display: flex; align-items: center; gap: 14px;
