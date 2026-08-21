@@ -190,24 +190,43 @@ input, textarea, select { font-family: var(--font); }
 }
 .icon-btn:hover { background: var(--hover); color: var(--text); }
 
-/* ---------- Botón Cerrar sesión ---------- */
+/* ---------- Botón Cerrar sesión (icono que se expande al hover) ---------- */
 .logout-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 11px;
-  border-radius: 14px;
-  background: var(--user-bubble);
-  color: #fff;
+  width: 40px;
+  height: 40px;
+  padding: 0 12px;
+  gap: 0;
+  border-radius: 13px;
+  background: var(--chip);
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
-  box-shadow: var(--glass-shadow);
-  transition: var(--transition);
-  flex-shrink: 0;
+  overflow: hidden;
   white-space: nowrap;
+  flex-shrink: 0;
+  transition: width .32s cubic-bezier(.34, 1.3, .64, 1),
+              background .25s ease,
+              color .25s ease,
+              box-shadow .25s ease,
+              gap .32s cubic-bezier(.34, 1.3, .64, 1);
 }
-.logout-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
 .logout-btn svg { flex-shrink: 0; }
+.logout-btn span {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-width .32s cubic-bezier(.34, 1.3, .64, 1), opacity .2s ease;
+}
+.logout-btn:hover {
+  width: 136px;
+  gap: 7px;
+  background: var(--user-bubble);
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(27, 42, 74, .35);
+}
+.logout-btn:hover span { max-width: 92px; opacity: 1; }
 
 /* ---------- Switch Mensajes / Grupos / Directorio ---------- */
 .seg {
@@ -724,8 +743,16 @@ input, textarea, select { font-family: var(--font); }
 }
 
 .chat-item.has-unread {
-  border-color: var(--accent-2);
-  background: var(--glass-strong);
+  background: var(--user-bubble);
+  border-color: transparent;
+  box-shadow: 0 10px 26px rgba(27, 42, 74, .35);
+}
+.chat-item.has-unread .chat-title { color: #fff; }
+.chat-item.has-unread .chat-sub,
+.chat-item.has-unread .chat-time { color: rgba(255, 255, 255, .75); }
+.chat-item.has-unread:hover {
+  background: var(--user-bubble);
+  filter: brightness(1.15);
 }
 
 .chat-item.animate-pulse-glow {
