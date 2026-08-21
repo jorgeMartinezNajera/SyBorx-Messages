@@ -82,6 +82,9 @@ const els = {
   emptyText: $('#empty-text'),
   messages: $('#messages'),
   messagesInner: $('#messages-inner'),
+  typingIndicator: $('#typing-indicator'),
+  typingAvatar: $('#typing-avatar'),
+  typingText: $('#typing-text'),
   composer: $('#composer'),
   input: $('#input'),
   sendBtn: $('#send-btn'),
@@ -545,18 +548,117 @@ function onPresence(data) {
   }
 }
 
+// Temporizadores de auto-expiración de escritura
+const typingTimeouts = {};
+
 function onTyping(data) {
-  if (!state.activeChat) return;
-  const matches = (data.channelId && state.activeChat.kind === 'channel' && data.channelId === state.activeChat.id) ||
-    (data.directChatId && state.activeChat.kind === 'direct' && data.directChatId === state.activeChat.id);
-  if (!matches) return;
-  const key = `${data.user ? data.user.id : ''}`;
+  if (!data || !data.user) return;
+  const userId = data.user.id;
+  const userName = data.user.displayName || data.user.username;
+  const avatarUrl = data.user.avatarUrl;
+
+  const isActive = state.activeChat &&
+    ((data.channelId && state.activeChat.kind === 'channel' && data.channelId === state.activeChat.id) ||
+     (data.directChatId && state.activeChat.kind === 'direct' && data.directChatId === state.activeChat.id));
+
+  // Limpiar timer previo para este usuario
+  if (typingTimeouts[userId]) {
+    clearTimeout(typingTimeouts[userId]);
+    delete typingTimeouts[userId];
+  }
+
   if (data.isTyping) {
-    state.typingUsers[key] = data.user ? data.user.displayName : '';
-    renderHeaderSubTyping();
+    state.typingUsers[userId] = { id: userId, displayName: userName, avatarUrl, channelId: data.channelId, directChatId: data.directChatId };
+    // Auto-expirar en 3.5 segundos si no se recibe typing:stop
+    typingTimeouts[userId] = setTimeout(() => {
+      delete state.typingUsers[userId];
+      updateTypingUI();
+      renderList();
+    }, 3500);
   } else {
-    delete state.typingUsers[key];
-    renderHeaderSubTyping();
+    delete state.typingUsers[userId];
+  }
+
+  if (isActive) {
+    updateTypingUI();
+  }
+  renderList();
+}
+
+function updateTypingUI() {
+  if (!state.activeChat) {
+    if (els.typingIndicator) els.typingIndicator.classList.add('hidden');
+    return;
+  }
+
+  const activeTypers = Object.values(state.typingUsers).filter(t => {
+    if (state.activeChat.kind === 'channel') return t.channelId === state.activeChat.id;
+    if (state.activeChat.kind === 'direct') return t.directChatId === state.activeChat.id;
+    return false;
+  });
+
+  // 1. Burbuja flotante de escritura en el chat
+  if (els.typingIndicator && els.typingText) {
+    if (activeTypers.length > 0) {
+      const first = activeTypers[0];
+      if (els.typingAvatar) {
+        if (first.avatarUrl) {
+          els.typingAvatar.textContent = '';
+          els.typingAvatar.style.backgroundImage = `url('${esc(first.avatarUrl)}')`;
+          els.typingAvatar.style.backgroundSize = 'cover';
+        } else {
+          els.typingAvatar.textContent = initials(first.displayName);
+          els.typingAvatar.style.backgroundImage = '';
+        }
+      }
+      if (activeTypers.length === 1) {
+        els.typingText.textContent = `${first.displayName} está escribiendo`;
+      } else if (activeTypers.length === 2) {
+        els.typingText.textContent = `${activeTypers[0].displayName} y ${activeTypers[1].displayName} están escribiendo`;
+      } else {
+        els.typingText.textContent = `Varias personas están escribiendo`;
+      }
+      els.typingIndicator.classList.remove('hidden');
+      scrollToBottom();
+    } else {
+      els.typingIndicator.classList.add('hidden');
+    }
+  }
+
+  // 2. Indicador dinámico en la cabecera
+  renderHeaderSubTyping(activeTypers);
+}
+
+function renderHeaderSubTyping(activeTypers) {
+  if (!state.activeChat || !els.chatSub) return;
+  const typers = activeTypers || Object.values(state.typingUsers).filter(t => {
+    if (state.activeChat.kind === 'channel') return t.channelId === state.activeChat.id;
+    if (state.activeChat.kind === 'direct') return t.directChatId === state.activeChat.id;
+    return false;
+  });
+
+  if (typers.length > 0) {
+    els.chatSub.className = 'typing-pulse-text';
+    if (typers.length === 1) {
+      els.chatSub.textContent = `✍️ ${typers[0].displayName} está escribiendo...`;
+    } else {
+      els.chatSub.textContent = `✍️ ${typers.length} personas están escribiendo...`;
+    }
+  } else {
+    els.chatSub.className = '';
+    // Restaurar subtítulo original
+    if (state.activeChat.kind === 'channel') {
+      const ch = state.channels.find(c => c.id === state.activeChat.id);
+      const memberCount = (ch && ch.community && ch.community._count && ch.community._count.members) || 0;
+      els.chatSub.textContent = ch ? `${ch.community?.name || 'Comunidad'} · ${memberCount} integrantes` : '';
+    } else {
+      const dm = state.directChats.find(d => d.id === state.activeChat.id);
+      const recipient = dm ? dm.recipient : state.directory.find(u => u.id === state.activeChat.peerId);
+      if (recipient) {
+        const isOnline = recipient.status === 'ONLINE' || recipient.status === 'IDLE' || recipient.status === 'DND';
+        els.chatSub.textContent = `${ROLE_LABELS[recipient.globalRole] || 'Miembro'} · ${STATUS_LABELS[recipient.status] || (isOnline ? 'En línea' : 'Desconectado')}`;
+      }
+    }
   }
 }
 
@@ -708,7 +810,10 @@ function renderList() {
       const last = dm && dm.lastMessage ? dm.lastMessage : null;
       const active = state.activeChat && state.activeChat.kind === 'direct' && dm && state.activeChat.id === dm.id;
       const online = peer.status === 'ONLINE' || peer.status === 'IDLE' || peer.status === 'DND';
-      const preview = last ? (last.messageType === 'TEXT' ? last.content : 'Adjunto') : (peer.customStatus || STATUS_LABELS[peer.status] || peer.bio || '');
+      const isTyping = Boolean(state.typingUsers[peer.id] || (dm && Object.values(state.typingUsers).some(t => t.directChatId === dm.id)));
+      const preview = isTyping
+        ? '<span class="typing-pulse-text">✍️ Escribiendo...</span>'
+        : esc(last ? (last.messageType === 'TEXT' ? last.content : 'Adjunto') : (peer.customStatus || STATUS_LABELS[peer.status] || peer.bio || ''));
       const time = last ? fmtTime(last.createdAt) : '';
       const unread = state.unreadCounts[peer.id] || (dm ? state.unreadCounts[dm.id] : 0) || 0;
       const isRecent = state.recentChatId === peer.id || (dm && state.recentChatId === dm.id);
@@ -721,7 +826,7 @@ function renderList() {
           </span>
           <span class="chat-meta">
             <span class="chat-title">${esc(peer.displayName)}</span>
-            <span class="chat-sub">${esc(preview)}</span>
+            <span class="chat-sub ${isTyping ? 'is-typing' : ''}">${preview}</span>
           </span>
           <span class="chat-right-meta">
             <span class="chat-time">${time}</span>
@@ -755,13 +860,18 @@ function renderList() {
       const members = (ch.community._count && ch.community._count.members) || 0;
       const unread = state.unreadCounts[ch.id] || 0;
       const isRecent = state.recentChatId === ch.id;
+      const channelTypers = Object.values(state.typingUsers).filter(t => t.channelId === ch.id);
+      const isTyping = channelTypers.length > 0;
+      const preview = isTyping
+        ? `<span class="typing-pulse-text">✍️ ${channelTypers[0].displayName.split(' ')[0]} escribe...</span>`
+        : esc(`${ch.community.name} · ${members} integrantes`);
 
       return `
         <button type="button" class="chat-item ${active ? 'active' : ''} ${unread > 0 ? 'has-unread' : ''} ${isRecent ? 'animate-pulse-glow' : ''}" data-chat-id="${ch.id}">
           <span class="avatar" style="background:var(--accent-2);color:#fff;">${esc(initials('#' + ch.name))}</span>
           <span class="chat-meta">
             <span class="chat-title"># ${esc(ch.name)}</span>
-            <span class="chat-sub">${esc(ch.community.name)} · ${members} integrantes</span>
+            <span class="chat-sub ${isTyping ? 'is-typing' : ''}">${preview}</span>
           </span>
           <span class="chat-right-meta">
             <span class="chat-time"></span>
@@ -847,6 +957,11 @@ async function openChat(chat) {
   }
   state.activeChat = chat;
 
+  // Limpiar timers y estado de typing al cambiar de chat
+  Object.keys(typingTimeouts).forEach(k => clearTimeout(typingTimeouts[k]));
+  state.typingUsers = {};
+  updateTypingUI();
+
   // Limpiar conteo de no leídos de esta conversación
   delete state.unreadCounts[chat.id];
   const dm = state.directChats.find(d => d.id === chat.id);
@@ -906,15 +1021,6 @@ function renderHeader(chat) {
     const canDelete = canManageCommunity();
     els.deleteChatBtn.classList.toggle('hidden', !canDelete);
   }
-}
-
-function renderHeaderSubTyping() {
-  const names = Object.values(state.typingUsers).filter(Boolean);
-  if (names.length) {
-    els.chatSub.textContent = `${names.join(', ')} ${names.length > 1 ? 'están' : 'está'} escribiendo...`;
-    return;
-  }
-  els.chatSub.textContent = els.chatSub.dataset.base || '';
 }
 
 function renderMessages() {
@@ -997,6 +1103,14 @@ async function sendMessage() {
   els.input.value = '';
   autoResize();
   clearPendingFiles();
+
+  if (state.socket && state.socket.connected && state.activeChat) {
+    const payload = state.activeChat.kind === 'channel'
+      ? { channelId: state.activeChat.id }
+      : { directChatId: state.activeChat.id };
+    state.socket.emit('typing:stop', payload);
+  }
+
   try {
     const msg = await api('/messages', { method: 'POST', body });
     upsertMessage(msg);
