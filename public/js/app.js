@@ -1085,8 +1085,8 @@ function renderHeader(chat) {
     els.chatName.textContent = peer ? peer.displayName : 'Usuario';
     els.chatSub.dataset.base = peer ? `${ROLE_LABELS[peer.globalRole] || peer.globalRole} · ${STATUS_LABELS[peer.status] || 'Desconectado'}` : '';
     els.chatSub.textContent = els.chatSub.dataset.base;
-    els.membersBtn.classList.add('hidden');
-    els.deleteChatBtn.classList.add('hidden');
+    if (els.membersBtn) els.membersBtn.classList.add('hidden');
+    if (els.deleteChatBtn) els.deleteChatBtn.classList.add('hidden');
   } else {
     const ch = state.channels.find(c => c.id === chat.id);
     els.chatName.textContent = '# ' + (ch ? ch.name : 'canal');
@@ -1096,9 +1096,9 @@ function renderHeader(chat) {
     const members = (ch && ch.community && ch.community._count && ch.community._count.members) || 0;
     els.chatSub.dataset.base = ch && ch.community ? `${ch.community.name} · ${members} integrantes` : '';
     els.chatSub.textContent = els.chatSub.dataset.base;
-    els.membersBtn.classList.remove('hidden');
+    if (els.membersBtn) els.membersBtn.classList.remove('hidden');
     const canDelete = canManageCommunity();
-    els.deleteChatBtn.classList.toggle('hidden', !canDelete);
+    if (els.deleteChatBtn) els.deleteChatBtn.classList.toggle('hidden', !canDelete);
   }
 }
 
