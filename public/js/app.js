@@ -1061,7 +1061,7 @@ function renderHeader(chat) {
 function statusHtml(deliveryStatus) {
   const status = deliveryStatus || 'SENT';
   if (status === 'READ') {
-    return `<span class="msg-status status-read" title="Leído: Conexión completada y visto"><span class="status-liquid-droplet"></span></span>`;
+    return `<span class="msg-status status-read" title="Leído: Núcleo de energía verde"><span class="status-energy-core"></span></span>`;
   }
   if (status === 'DELIVERED') {
     return `<span class="msg-status status-delivered" title="Entregado: Núcleo de energía blanco en destino"><span class="status-energy-core"></span></span>`;
