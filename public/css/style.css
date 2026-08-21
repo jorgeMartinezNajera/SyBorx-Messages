@@ -767,6 +767,20 @@ input, textarea, select { font-family: var(--font); }
   filter: brightness(1.15);
 }
 
+/* Tema oscuro: caja blanca opaca para chats sin leer */
+[data-theme="dark"] .chat-item.has-unread {
+  background: rgba(255, 255, 255, .88);
+  border-color: transparent;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .45);
+}
+[data-theme="dark"] .chat-item.has-unread .chat-title { color: #16233F; }
+[data-theme="dark"] .chat-item.has-unread .chat-sub,
+[data-theme="dark"] .chat-item.has-unread .chat-time { color: rgba(22, 35, 63, .68); }
+[data-theme="dark"] .chat-item.has-unread:hover {
+  background: #FFFFFF;
+  filter: none;
+}
+
 .chat-item.animate-pulse-glow {
   animation: chatCardPulse 1.6s cubic-bezier(.22, 1, .36, 1);
 }
