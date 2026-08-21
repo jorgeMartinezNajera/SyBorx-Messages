@@ -39,10 +39,10 @@ export class AttachmentInputDto {
 }
 
 export class CreateMessageDto {
-  @ApiProperty({ example: 'Hola equipo, aquí está el diagrama ER de la base de datos', description: 'Contenido del mensaje' })
+  @ApiPropertyOptional({ example: 'Hola equipo, aquí está el diagrama', description: 'Contenido del mensaje (opcional si se envían adjuntos)' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'El contenido del mensaje no puede estar vacío' })
-  content: string;
+  content?: string;
 
   @ApiPropertyOptional({ example: 'a1b2c3d4-e5f6-7890-1234-56789abcdef0', description: 'ID del canal (si el mensaje es en un canal)' })
   @IsOptional()

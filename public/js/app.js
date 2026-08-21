@@ -182,6 +182,21 @@ function fmtTime(iso) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+function fmtFileSize(bytes) {
+  if (!bytes || isNaN(bytes)) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatLastMessagePreview(last) {
+  if (!last) return '';
+  if (last.messageType === 'IMAGE') return '📷 Foto';
+  if (last.messageType === 'FILE') return '📄 Archivo adjunto';
+  if (last.content && last.content.trim()) return last.content;
+  return '📎 Archivo adjunto';
+}
+
 function dayLabel(iso) {
   const d = new Date(iso);
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -870,7 +885,7 @@ function renderList() {
       const isTyping = Boolean(state.typingUsers[peer.id] || (dm && Object.values(state.typingUsers).some(t => t.directChatId === dm.id)));
       const preview = isTyping
         ? '<span class="typing-pulse-text">✍️ Escribiendo...</span>'
-        : esc(last ? (last.messageType === 'TEXT' ? last.content : 'Adjunto') : (peer.customStatus || STATUS_LABELS[peer.status] || peer.bio || ''));
+        : esc(last ? formatLastMessagePreview(last) : (peer.customStatus || STATUS_LABELS[peer.status] || peer.bio || ''));
       const time = last ? fmtTime(last.createdAt) : '';
       const unread = state.unreadCounts[peer.id] || (dm ? state.unreadCounts[dm.id] : 0) || 0;
       const isRecent = state.recentChatId === peer.id || (dm && state.recentChatId === dm.id);
@@ -1114,13 +1129,38 @@ function renderMessages() {
     const filesHtml = (m.attachments || []).map(f => {
       const url = fixFileUrl(f.fileUrl);
       const isImg = (f.mimeType && f.mimeType.startsWith('image/')) || /\.(png|jpe?g|gif|webp|svg)$/i.test(f.originalName || '');
+      const sizeStr = f.fileSizeBytes ? fmtFileSize(f.fileSizeBytes) : '';
       return isImg
         ? `<img class="msg-image" src="${esc(url)}" alt="${esc(f.originalName)}" title="${esc(f.originalName)}" loading="lazy" onclick="window.open('${esc(url)}', '_blank')">`
-        : `<a class="file-chip" href="${esc(url)}" target="_blank" rel="noopener">
-             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-             <span class="fname">${esc(f.originalName)}</span>
+        : `<a class="file-chip" href="${esc(url)}" target="_blank" rel="noopener" title="Descargar ${esc(f.originalName)}">
+             <div class="file-chip-icon">
+               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                 <polyline points="14 2 14 8 20 8"/>
+               </svg>
+             </div>
+             <div class="file-chip-info">
+               <span class="fname">${esc(f.originalName)}</span>
+               ${sizeStr ? `<span class="fsize">${esc(sizeStr)}</span>` : ''}
+             </div>
+             <div class="file-chip-download">
+               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                 <polyline points="7 10 12 15 17 10"/>
+                 <line x1="12" y1="15" x2="12" y2="3"/>
+               </svg>
+             </div>
            </a>`;
     }).join('');
+
+    // Ocultar texto redundante si el contenido es idéntico al nombre del archivo
+    const isAttachmentNameOnly = (m.attachments && m.attachments.length > 0) &&
+      (!m.content || !m.content.trim() || m.attachments.some(a => a.originalName === m.content.trim() || a.storedName === m.content.trim()));
+
+    const textHtml = (!isAttachmentNameOnly && m.content && m.messageType !== 'SYSTEM')
+      ? `<div class="bubble-text">${esc(m.content)}${edited}</div>`
+      : '';
+
     const reactions = (m.reactions && m.reactions.length)
       ? `<div class="msg-reactions">${m.reactions.map(r => `<span class="reaction-chip" title="${esc(r.user ? r.user.displayName : '')}">${esc(r.emoji)}</span>`).join('')}</div>`
       : '';
@@ -1130,7 +1170,7 @@ function renderMessages() {
         ${mine ? '' : avatarHtml(sender)}
         <div class="bubble ${isRecentlyReceived ? 'bubble-received-anim' : ''}">
           ${state.activeChat.kind === 'channel' && !mine ? `<span class="bubble-sender">${esc(sender.displayName || 'Usuario')}</span>` : ''}
-          ${m.content && m.messageType !== 'SYSTEM' ? `<div class="bubble-text">${esc(m.content)}${edited}</div>` : ''}
+          ${textHtml}
           ${filesHtml}
           ${reactions}
           <div class="bubble-footer">
@@ -1172,8 +1212,7 @@ async function sendMessage() {
     }
   }
 
-  const content = text || (attachments && attachments.length ? attachments[0].originalName : '');
-  const body = { content };
+  const body = { content: text || '' };
   if (state.activeChat.kind === 'channel') body.channelId = state.activeChat.id;
   else body.directChatId = state.activeChat.id;
   if (attachments && attachments.length) body.attachments = attachments;

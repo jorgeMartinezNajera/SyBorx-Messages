@@ -67,6 +67,20 @@ export class MessagesService {
       }
     }
 
+    const hasText = Boolean(dto.content && dto.content.trim().length > 0);
+    const hasAttachments = Boolean(dto.attachments && dto.attachments.length > 0);
+
+    if (!hasText && !hasAttachments) {
+      throw new BadRequestException('El mensaje debe contener texto o al menos un archivo adjunto');
+    }
+
+    let resolvedMessageType = dto.messageType || 'TEXT';
+    if (!hasText && hasAttachments) {
+      const firstAtt = dto.attachments[0];
+      const isImg = (firstAtt.mimeType && firstAtt.mimeType.startsWith('image/')) || /\.(png|jpe?g|gif|webp|svg)$/i.test(firstAtt.originalName || '');
+      resolvedMessageType = isImg ? 'IMAGE' : 'FILE';
+    }
+
     // Create message with attachments
     const message = await this.prisma.message.create({
       data: {
@@ -74,9 +88,9 @@ export class MessagesService {
         channelId: dto.channelId,
         directChatId: dto.directChatId,
         parentMessageId: dto.parentMessageId,
-        content: dto.content,
-        messageType: dto.messageType || 'TEXT',
-        ...(dto.attachments && dto.attachments.length > 0
+        content: hasText ? dto.content.trim() : '',
+        messageType: resolvedMessageType,
+        ...(hasAttachments
           ? {
               attachments: {
                 create: dto.attachments.map((att) => ({

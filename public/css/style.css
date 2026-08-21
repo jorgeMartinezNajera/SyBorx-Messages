@@ -899,30 +899,93 @@ input, textarea, select { font-family: var(--font); }
 }
 
 .file-chip {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  background: var(--chip);
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: var(--glass-strong);
   color: var(--text);
   text-decoration: none;
   font-size: 13px;
   font-weight: 500;
-  margin-top: 6px;
+  margin-top: 4px;
+  margin-bottom: 2px;
   border: 1px solid var(--glass-border);
-  transition: background var(--transition), transform var(--transition);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+  transition: transform var(--transition), background var(--transition), box-shadow var(--transition);
+  max-width: 100%;
 }
 
 .msg.out .file-chip {
-  background: rgba(255, 255, 255, .16);
-  color: #fff;
-  border-color: rgba(255, 255, 255, .25);
+  background: rgba(255, 255, 255, 0.18);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
 }
 
 .file-chip:hover {
-  background: var(--hover);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+.msg.out .file-chip:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.file-chip-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-2);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.msg.out .file-chip-icon {
+  background: rgba(255, 255, 255, 0.25);
+  color: #FFFFFF;
+}
+
+.file-chip-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.file-chip-info .fname {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+.file-chip-info .fsize {
+  font-size: 11px;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
+.file-chip-download {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--chip);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: transform var(--transition);
+}
+.msg.out .file-chip-download {
+  background: rgba(255, 255, 255, 0.2);
+  color: #FFFFFF;
+}
+.file-chip:hover .file-chip-download {
+  transform: scale(1.1);
 }
 
 /* Animación de entrada fluida para mensajes */
