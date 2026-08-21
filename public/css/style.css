@@ -47,47 +47,59 @@ body::after {
 
 /* ===================== TEMAS ===================== */
 [data-theme="light"] {
-  --bg-1: #FBF6EA;              /* crema */
-  --bg-2: #F0E8D4;
-  --blob-1: rgba(27, 42, 74, .16);
-  --blob-2: rgba(214, 196, 150, .5);
-  --text: #1B2A4A;              /* azul marino */
-  --text-muted: #5F6B84;
-  --glass-bg: rgba(255, 255, 255, .5);
-  --glass-strong: rgba(255, 255, 255, .8);
-  --glass-border: rgba(27, 42, 74, .12);
-  --glass-shadow: 0 10px 34px rgba(27, 42, 74, .14);
-  --hover: rgba(27, 42, 74, .07);
-  --chip: rgba(27, 42, 74, .10);
-  --accent: #1B2A4A;
-  --accent-2: #2E4A7A;
-  --user-bubble: linear-gradient(135deg, #1B2A4A, #2E4A7A);
-  --input-bg: rgba(255, 255, 255, .5);
-  --code-bg: rgba(27, 42, 74, .08);
-  --danger: #B3402F;
-  --success: #2E7D4F;
+  --bg-1: #FAF7F2;              /* crema cálido porcelana */
+  --bg-2: #F1EAE0;
+  --blob-1: rgba(99, 102, 241, 0.18);
+  --blob-2: rgba(245, 158, 11, 0.15);
+  --blob-3: rgba(59, 130, 246, 0.18);
+  --blob-4: rgba(236, 72, 153, 0.12);
+  --text: #172554;              /* azul marino profundo */
+  --text-muted: #64748B;
+  --glass-bg: rgba(255, 255, 255, 0.68);
+  --glass-strong: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(255, 255, 255, 0.8);
+  --glass-shadow: 0 20px 45px -10px rgba(27, 42, 74, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+  --hover: rgba(27, 42, 74, 0.06);
+  --chip: rgba(27, 42, 74, 0.08);
+  --accent: #1E3A8A;
+  --accent-2: #3B82F6;
+  --user-bubble: linear-gradient(135deg, #1E3A8A, #2563EB);
+  --input-bg: rgba(255, 255, 255, 0.85);
+  --input-border: rgba(203, 213, 225, 0.7);
+  --code-bg: rgba(27, 42, 74, 0.06);
+  --danger: #DC2626;
+  --success: #16A34A;
+  --btn-submit-bg: linear-gradient(135deg, #4F46E5 0%, #3B82F6 100%);
+  --btn-submit-color: #FFFFFF;
+  --btn-submit-shadow: 0 10px 25px -4px rgba(79, 70, 229, 0.4);
 }
 
 [data-theme="dark"] {
-  --bg-1: #070B14;              /* azul marino muy oscuro */
-  --bg-2: #0D1626;
-  --blob-1: rgba(46, 96, 184, .22);
-  --blob-2: rgba(28, 54, 100, .5);
-  --text: #DCE6F7;
-  --text-muted: #8CA3C7;
-  --glass-bg: rgba(13, 24, 45, .6);
-  --glass-strong: rgba(19, 33, 60, .82);
-  --glass-border: rgba(122, 162, 226, .14);
-  --glass-shadow: 0 10px 34px rgba(0, 0, 0, .5);
-  --hover: rgba(122, 162, 226, .12);
-  --chip: rgba(122, 162, 226, .14);
-  --accent: #B9CCF0;
-  --accent-2: #6C8FD4;
-  --user-bubble: linear-gradient(135deg, #0E1A33, #1E3A6E);
-  --input-bg: rgba(122, 162, 226, .05);
-  --code-bg: rgba(0, 0, 0, .35);
-  --danger: #F08A7A;
-  --success: #6FCF97;
+  --bg-1: #0A0F1D;              /* azul medianoche profundo */
+  --bg-2: #060913;
+  --blob-1: rgba(59, 130, 246, 0.22);
+  --blob-2: rgba(99, 102, 241, 0.18);
+  --blob-3: rgba(147, 197, 253, 0.14);
+  --blob-4: rgba(79, 70, 229, 0.16);
+  --text: #F1F5F9;
+  --text-muted: #94A3B8;
+  --glass-bg: rgba(15, 23, 42, 0.55);
+  --glass-strong: rgba(19, 33, 60, 0.78);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+  --hover: rgba(122, 162, 226, 0.12);
+  --chip: rgba(122, 162, 226, 0.14);
+  --accent: #93C5FD;
+  --accent-2: #60A5FA;
+  --user-bubble: linear-gradient(135deg, #1E3A8A, #1D4ED8);
+  --input-bg: rgba(11, 17, 32, 0.65);
+  --input-border: rgba(255, 255, 255, 0.09);
+  --code-bg: rgba(0, 0, 0, 0.4);
+  --danger: #F87171;
+  --success: #4ADE80;
+  --btn-submit-bg: linear-gradient(135deg, #3B82F6 0%, #60A5FA 100%);
+  --btn-submit-color: #0F172A;
+  --btn-submit-shadow: 0 10px 28px -4px rgba(59, 130, 246, 0.45);
 }
 
 /* ===================== UTILIDADES ===================== */
@@ -1056,74 +1068,365 @@ input, textarea, select { font-family: var(--font); }
   .empty-state h1 { font-size: 30px; }
 }
 
-/* ===================== PANTALLA DE AUTENTICACIÓN ===================== */
+/* ===================== PANTALLA DE AUTENTICACIÓN LIQUID GLASS ===================== */
 .auth-screen {
   position: relative;
-  height: 100vh;
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px 40px;
   z-index: 1;
-  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg-auth-gradient, linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 100%));
 }
-.auth-theme-toggle { position: fixed; top: 20px; right: 20px; z-index: 10; }
-.auth-card {
-  width: 100%; max-width: 440px;
-  border-radius: 28px;
-  padding: 30px 28px 26px;
-  animation: pop .25s ease;
+
+/* ---------- Fondo Líquido Animado de Malla Fluida ---------- */
+.liquid-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
 }
-.auth-brand { text-align: center; margin-bottom: 20px; }
-.auth-brand .logo-mark { margin: 0 auto 14px; }
+.liquid-blob {
+  position: absolute;
+  border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+  filter: blur(75px);
+  will-change: transform, border-radius;
+  opacity: 0.85;
+}
+.blob-1 {
+  width: 55vw; height: 55vw;
+  top: -15vw; left: -10vw;
+  background: var(--blob-1);
+  animation: liquidMorph1 20s ease-in-out infinite alternate;
+}
+.blob-2 {
+  width: 50vw; height: 50vw;
+  bottom: -15vw; right: -10vw;
+  background: var(--blob-2);
+  animation: liquidMorph2 24s ease-in-out infinite alternate;
+}
+.blob-3 {
+  width: 40vw; height: 40vw;
+  top: 30%; right: 5%;
+  background: var(--blob-3);
+  animation: liquidMorph3 18s ease-in-out infinite alternate;
+}
+.blob-4 {
+  width: 35vw; height: 35vw;
+  bottom: 10%; left: 10%;
+  background: var(--blob-4);
+  animation: liquidMorph4 22s ease-in-out infinite alternate;
+}
+.liquid-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 45%, transparent 20%, rgba(0, 0, 0, 0.08) 100%);
+}
+
+@keyframes liquidMorph1 {
+  0% { transform: translate(0, 0) scale(1) rotate(0deg); border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; }
+  50% { transform: translate(4vw, 5vw) scale(1.1) rotate(90deg); border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+  100% { transform: translate(-3vw, 2vw) scale(0.95) rotate(180deg); border-radius: 50% 60% 40% 60% / 40% 60% 50% 70%; }
+}
+@keyframes liquidMorph2 {
+  0% { transform: translate(0, 0) scale(1) rotate(0deg); border-radius: 60% 40% 30% 70% / 50% 60% 40% 50%; }
+  50% { transform: translate(-5vw, -4vw) scale(1.08) rotate(-100deg); border-radius: 40% 60% 70% 30% / 40% 40% 60% 60%; }
+  100% { transform: translate(3vw, -2vw) scale(0.9) rotate(-190deg); border-radius: 70% 30% 50% 50% / 30% 70% 40% 60%; }
+}
+@keyframes liquidMorph3 {
+  0% { transform: scale(1) translate(0, 0); }
+  50% { transform: scale(1.2) translate(-6vw, 4vw); }
+  100% { transform: scale(0.95) translate(3vw, -5vw); }
+}
+@keyframes liquidMorph4 {
+  0% { transform: scale(1) translate(0, 0); }
+  50% { transform: scale(1.15) translate(5vw, -3vw); }
+  100% { transform: scale(0.9) translate(-4vw, 4vw); }
+}
+
+/* ---------- Barra Superior de Inicio ---------- */
+.auth-topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  z-index: 20;
+}
+.auth-topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: -0.2px;
+}
+.auth-topbar__brand svg {
+  color: var(--accent-2);
+}
+.auth-theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: var(--glass-strong);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  color: var(--text);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  transition: transform var(--transition), background var(--transition), box-shadow var(--transition);
+}
+.auth-theme-btn:hover {
+  transform: scale(1.06);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+/* ---------- Tarjeta Liquid Glass Principal ---------- */
+.auth-card.glass-liquid {
+  position: relative;
+  width: 100%;
+  max-width: 430px;
+  border-radius: 34px;
+  padding: 34px 32px 30px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(36px) saturate(190%);
+  -webkit-backdrop-filter: blur(36px) saturate(190%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  z-index: 10;
+  animation: authCardEnter .45s cubic-bezier(.34, 1.3, .64, 1);
+}
+@keyframes authCardEnter {
+  0% { opacity: 0; transform: translateY(24px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ---------- Cabecera de Marca en Tarjeta ---------- */
+.auth-brand {
+  text-align: center;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.auth-icon-squircle {
+  width: 66px;
+  height: 66px;
+  border-radius: 22px;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.4) inset;
+  color: var(--accent-2);
+  transition: transform .3s ease;
+}
+.auth-icon-squircle:hover {
+  transform: translateY(-2px) scale(1.04);
+}
 .auth-brand h1 {
-  font-size: 26px; font-weight: 700; letter-spacing: .6px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--text);
+  margin-bottom: 6px;
 }
-.auth-brand p { color: var(--text-muted); font-size: 13px; margin-top: 6px; }
+.auth-brand p {
+  color: var(--text-muted);
+  font-size: 13.5px;
+  line-height: 1.4;
+  max-width: 280px;
+}
+
+/* ---------- Selector de Pestañas (Iniciar / Registrar) ---------- */
 .auth-tabs {
-  position: relative; display: flex;
-  margin-bottom: 18px; padding: 4px;
-  border-radius: 16px;
+  position: relative;
+  display: flex;
+  margin-bottom: 22px;
+  padding: 4px;
+  border-radius: 18px;
   background: var(--chip);
   border: 1px solid var(--glass-border);
 }
 .auth-pill {
-  position: absolute; top: 4px; bottom: 4px; left: 4px;
+  position: absolute;
+  top: 4px; bottom: 4px; left: 4px;
   width: calc(50% - 4px);
-  border-radius: 13px;
+  border-radius: 14px;
   background: var(--glass-strong);
-  box-shadow: var(--glass-shadow);
-  transition: transform var(--transition);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  transition: transform .32s cubic-bezier(.34, 1.25, .64, 1);
   z-index: 0;
 }
-.auth-tabs[data-tab="register"] .auth-pill { transform: translateX(100%); }
-.auth-tab {
-  position: relative; z-index: 1; flex: 1;
-  padding: 10px 6px; border-radius: 13px;
-  font-size: 13.5px; font-weight: 600;
-  color: var(--text-muted); transition: color var(--transition);
+.auth-tabs[data-tab="register"] .auth-pill {
+  transform: translateX(100%);
 }
-.auth-tab.active { color: var(--text); }
-.auth-form input { width: 100%; }
+.auth-tab {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  padding: 10px 8px;
+  border-radius: 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: color var(--transition);
+  text-align: center;
+}
+.auth-tab.active {
+  color: var(--text);
+}
+
+/* ---------- Campos de Formulario ---------- */
+.form-label-caps {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.auth-form .form-field {
+  margin-bottom: 16px;
+}
+.auth-form input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border, var(--glass-border));
+  color: var(--text);
+  font-size: 13.5px;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+}
+.auth-form input:focus {
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.22);
+}
+
+/* ---------- Contenedor de Contraseña con Toggle de Ojo ---------- */
+.pwd-field-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.pwd-field-wrap input {
+  padding-right: 42px;
+}
+.pwd-eye-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 8px;
+  transition: color var(--transition), transform var(--transition);
+}
+.pwd-eye-btn:hover {
+  color: var(--text);
+  transform: translateY(-50%) scale(1.1);
+}
+
+/* ---------- Botón Principal Liquid ---------- */
+.btn-liquid-submit {
+  width: 100%;
+  padding: 13px 18px;
+  border-radius: 16px;
+  background: var(--btn-submit-bg);
+  color: var(--btn-submit-color);
+  font-weight: 600;
+  font-size: 14.5px;
+  border: none;
+  box-shadow: var(--btn-submit-shadow);
+  transition: transform var(--transition), filter var(--transition), box-shadow var(--transition);
+  margin-top: 6px;
+}
+.btn-liquid-submit:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.07);
+  box-shadow: 0 14px 30px -4px rgba(79, 70, 229, 0.45);
+}
+.btn-liquid-submit:active {
+  transform: translateY(0);
+}
+.btn-liquid-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ---------- Mensaje de Error ---------- */
 .auth-error {
   margin-top: 14px;
   padding: 10px 14px;
   border-radius: 12px;
   font-size: 12.5px;
-  background: var(--chip);
+  background: rgba(220, 38, 38, 0.12);
   color: var(--danger);
-  border: 1px solid var(--danger);
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  animation: pop .2s ease;
 }
+
+/* ---------- Footer de Cuentas de Prueba ---------- */
 .auth-hint {
-  margin-top: 18px; padding-top: 14px;
+  margin-top: 22px;
+  padding-top: 16px;
   border-top: 1px solid var(--glass-border);
-  display: flex; flex-direction: column; gap: 4px;
-  font-size: 12px; color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
   text-align: center;
 }
-.auth-hint strong { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; }
-.auth-hint code { background: var(--chip); padding: 1px 6px; border-radius: 6px; color: var(--accent-2); }
+.hint-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.9px;
+  color: var(--text-muted);
+}
+.hint-users {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.hint-pwd {
+  margin-top: 3px;
+  font-size: 11.5px;
+}
+.hint-pwd code {
+  background: var(--chip);
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-weight: 600;
+  color: var(--accent-2);
+  cursor: pointer;
+  border: 1px solid var(--glass-border);
+  transition: background var(--transition), color var(--transition);
+}
+.hint-pwd code:hover {
+  background: var(--accent-2);
+  color: #FFFFFF;
+}
 
 /* ===================== PRESENCIA / AVATARES ===================== */
 .avatar-wrap { position: relative; display: inline-flex; flex-shrink: 0; }
