@@ -282,7 +282,7 @@ async function onAuthenticated(res) {
   state.token = res.accessToken;
   state.user = res.user;
   localStorage.setItem(STORE_KEY_TOKEN, state.token);
-  clearAuthError();
+  clearAuthForms();
 
   if (res.mustChangePassword || (res.user && res.user.mustChangePassword)) {
     showForcePasswordModal();
@@ -364,7 +364,32 @@ async function doForceChangePassword(e) {
   }
 }
 
+function clearAuthForms() {
+  if (els.loginForm) els.loginForm.reset();
+  if (els.registerForm) els.registerForm.reset();
+  if (els.loginIdentifier) els.loginIdentifier.value = '';
+  if (els.loginPassword) els.loginPassword.value = '';
+  if (els.regName) els.regName.value = '';
+  if (els.regEmail) els.regEmail.value = '';
+  if (els.regUsername) els.regUsername.value = '';
+  if (els.regPassword) els.regPassword.value = '';
+  if (els.regBio) els.regBio.value = '';
+  clearAuthError();
+
+  // Restaurar visibilidad de contraseñas
+  document.querySelectorAll('.pwd-eye-btn').forEach(btn => {
+    const targetId = btn.dataset.target;
+    const input = document.getElementById(targetId);
+    if (input) input.type = 'password';
+    const openIco = btn.querySelector('.eye-open');
+    const closedIco = btn.querySelector('.eye-closed');
+    if (openIco) openIco.classList.remove('hidden');
+    if (closedIco) closedIco.classList.add('hidden');
+  });
+}
+
 function showAuth() {
+  clearAuthForms();
   els.app.classList.add('hidden');
   els.authScreen.classList.remove('hidden');
 }
@@ -385,6 +410,7 @@ async function logout(toastMsg = true) {
   localStorage.removeItem(STORE_KEY_TOKEN);
   clearPendingFiles();
   resetAppUI();
+  clearAuthForms();
   showAuth();
   if (toastMsg) toast('Sesión cerrada');
 }
@@ -1482,7 +1508,7 @@ function init() {
     els.authTabsBox.dataset.tab = tab;
     els.loginForm.classList.toggle('hidden', tab !== 'login');
     els.registerForm.classList.toggle('hidden', tab !== 'register');
-    clearAuthError();
+    clearAuthForms();
   }));
 
   // Formularios
