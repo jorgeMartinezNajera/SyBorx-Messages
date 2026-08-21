@@ -213,13 +213,13 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
           },
         });
 
-        this.server.to(`direct_chat_${data.directChatId}`).emit('message:status', {
+        client.to(`direct_chat_${data.directChatId}`).emit('message:status', {
           directChatId: data.directChatId,
           readByUserId: user.id,
           status: 'READ',
         });
       } else if (data.channelId) {
-        this.server.to(`channel_${data.channelId}`).emit('message:status', {
+        client.to(`channel_${data.channelId}`).emit('message:status', {
           channelId: data.channelId,
           readByUserId: user.id,
           status: 'READ',
@@ -251,7 +251,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
       const room = data.directChatId ? `direct_chat_${data.directChatId}` : (data.channelId ? `channel_${data.channelId}` : null);
       if (room) {
-        this.server.to(room).emit('message:status', {
+        client.to(room).emit('message:status', {
           messageId: data.messageId,
           directChatId: data.directChatId,
           channelId: data.channelId,

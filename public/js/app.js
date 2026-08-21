@@ -451,6 +451,9 @@ function connectSocket() {
 
 function onMessageStatus(data) {
   if (!data) return;
+  // Si el evento fue generado por mí mismo leyendo los mensajes de otro, no cambiar mis propios mensajes enviados
+  if (data.readByUserId && data.readByUserId === state.user.id) return;
+
   let changed = false;
   state.messages.forEach(m => {
     if (data.messageId && m.id === data.messageId) {
