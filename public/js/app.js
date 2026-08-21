@@ -1024,6 +1024,7 @@ async function openDirectWith(peerId) {
 }
 
 async function openChat(chat) {
+  if (!chat || !chat.id) return;
   if (state.activeChat && state.activeChat.id !== chat.id) {
     leaveChatRoom(state.activeChat);
   }
@@ -1044,7 +1045,13 @@ async function openChat(chat) {
     state.recentChatId = null;
   }
 
-  await loadMessages(chat);
+  try {
+    await loadMessages(chat);
+  } catch (err) {
+    console.error('Error al cargar mensajes:', err);
+    state.messages = [];
+  }
+
   connectChatRoom(chat);
 
   // Emitir lectura de mensajes
@@ -1056,10 +1063,10 @@ async function openChat(chat) {
   renderList();
   renderHeader(chat);
   renderMessages();
-  els.emptyState.classList.add('hidden');
-  els.messages.classList.remove('hidden');
-  els.composer.classList.remove('hidden');
-  els.chatHeader.classList.remove('hidden');
+  if (els.emptyState) els.emptyState.classList.add('hidden');
+  if (els.messages) els.messages.classList.remove('hidden');
+  if (els.composer) els.composer.classList.remove('hidden');
+  if (els.chatHeader) els.chatHeader.classList.remove('hidden');
   scrollToBottom();
 }
 
@@ -1072,30 +1079,41 @@ async function loadMessages(chat) {
 }
 
 function upsertMessage(msg) {
+  if (!msg || !msg.id) return;
   const idx = state.messages.findIndex(m => m.id === msg.id);
   if (idx >= 0) state.messages[idx] = msg;
   else state.messages.push(msg);
 }
 
 function renderHeader(chat) {
+  if (!chat) return;
   if (chat.kind === 'direct') {
     const dm = state.directChats.find(d => d.id === chat.id);
-    const peer = dm ? dm.recipient : null;
-    setAvatar(els.chatAvatar, peer);
-    els.chatName.textContent = peer ? peer.displayName : 'Usuario';
-    els.chatSub.dataset.base = peer ? `${ROLE_LABELS[peer.globalRole] || peer.globalRole} · ${STATUS_LABELS[peer.status] || 'Desconectado'}` : '';
-    els.chatSub.textContent = els.chatSub.dataset.base;
+    let peer = dm ? dm.recipient : null;
+    if (!peer && state.directory) {
+      peer = state.directory.find(u => u.id === chat.id);
+    }
+    if (els.chatAvatar) setAvatar(els.chatAvatar, peer);
+    if (els.chatName) els.chatName.textContent = peer ? peer.displayName : 'Conversación';
+    if (els.chatSub) {
+      els.chatSub.dataset.base = peer ? `${ROLE_LABELS[peer.globalRole] || peer.globalRole} · ${STATUS_LABELS[peer.status] || 'Desconectado'}` : '';
+      els.chatSub.textContent = els.chatSub.dataset.base;
+    }
     if (els.membersBtn) els.membersBtn.classList.add('hidden');
     if (els.deleteChatBtn) els.deleteChatBtn.classList.add('hidden');
   } else {
     const ch = state.channels.find(c => c.id === chat.id);
-    els.chatName.textContent = '# ' + (ch ? ch.name : 'canal');
-    els.chatAvatar.textContent = esc(initials(ch ? ch.name : '#'));
-    els.chatAvatar.style.backgroundImage = '';
-    els.chatAvatar.style.cssText = 'background:var(--accent-2);color:#fff;';
+    if (els.chatName) els.chatName.textContent = '# ' + (ch ? ch.name : 'canal');
+    if (els.chatAvatar) {
+      els.chatAvatar.textContent = esc(initials(ch ? ch.name : '#'));
+      els.chatAvatar.style.backgroundImage = '';
+      els.chatAvatar.style.cssText = 'background:var(--accent-2);color:#fff;';
+    }
     const members = (ch && ch.community && ch.community._count && ch.community._count.members) || 0;
-    els.chatSub.dataset.base = ch && ch.community ? `${ch.community.name} · ${members} integrantes` : '';
-    els.chatSub.textContent = els.chatSub.dataset.base;
+    if (els.chatSub) {
+      els.chatSub.dataset.base = ch && ch.community ? `${ch.community.name} · ${members} integrantes` : '';
+      els.chatSub.textContent = els.chatSub.dataset.base;
+    }
     if (els.membersBtn) els.membersBtn.classList.remove('hidden');
     const canDelete = canManageCommunity();
     if (els.deleteChatBtn) els.deleteChatBtn.classList.toggle('hidden', !canDelete);
@@ -1114,25 +1132,28 @@ function statusHtml(deliveryStatus) {
 }
 
 function renderMessages() {
-  if (!state.messages.length) {
+  if (!els.messagesInner) return;
+  if (!state.messages || !state.messages.length) {
     els.messagesInner.innerHTML = '<div class="chat-empty">No hay mensajes todavía. ¡Empieza la conversación!</div>';
     return;
   }
   let lastDay = null;
   els.messagesInner.innerHTML = state.messages.map(m => {
+    if (!m) return '';
     const day = dayLabel(m.createdAt);
     const sep = day !== lastDay ? `<div class="day-sep">${esc(day)}</div>` : '';
     lastDay = day;
-    const mine = m.senderId === state.user.id;
+    const mine = m.senderId === (state.user ? state.user.id : null);
     const sender = m.sender || {};
     const isRecentlyReceived = m.id === state.recentMsgId && !mine;
     const filesHtml = (m.attachments || []).map(f => {
+      if (!f) return '';
       const url = fixFileUrl(f.fileUrl);
       const isImg = (f.mimeType && f.mimeType.startsWith('image/')) || /\.(png|jpe?g|gif|webp|svg)$/i.test(f.originalName || '');
       const sizeStr = f.fileSizeBytes ? fmtFileSize(f.fileSizeBytes) : '';
       return isImg
-        ? `<img class="msg-image" src="${esc(url)}" alt="${esc(f.originalName)}" title="${esc(f.originalName)}" loading="lazy" onclick="window.open('${esc(url)}', '_blank')">`
-        : `<a class="file-chip" href="${esc(url)}" target="_blank" rel="noopener" title="Descargar ${esc(f.originalName)}">
+        ? `<img class="msg-image" src="${esc(url)}" alt="${esc(f.originalName || 'imagen')}" title="${esc(f.originalName || '')}" loading="lazy" onclick="window.open('${esc(url)}', '_blank')">`
+        : `<a class="file-chip" href="${esc(url)}" target="_blank" rel="noopener" title="Descargar ${esc(f.originalName || 'archivo')}">
              <div class="file-chip-icon">
                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -1140,7 +1161,7 @@ function renderMessages() {
                </svg>
              </div>
              <div class="file-chip-info">
-               <span class="fname">${esc(f.originalName)}</span>
+               <span class="fname">${esc(f.originalName || 'Archivo')}</span>
                ${sizeStr ? `<span class="fsize">${esc(sizeStr)}</span>` : ''}
              </div>
              <div class="file-chip-download">
@@ -1153,23 +1174,25 @@ function renderMessages() {
            </a>`;
     }).join('');
 
+    const contentStr = m.content != null ? String(m.content) : '';
     // Ocultar texto redundante si el contenido es idéntico al nombre del archivo
     const isAttachmentNameOnly = (m.attachments && m.attachments.length > 0) &&
-      (!m.content || !m.content.trim() || m.attachments.some(a => a.originalName === m.content.trim() || a.storedName === m.content.trim()));
+      (!contentStr.trim() || m.attachments.some(a => a && (a.originalName === contentStr.trim() || a.storedName === contentStr.trim())));
 
-    const textHtml = (!isAttachmentNameOnly && m.content && m.messageType !== 'SYSTEM')
-      ? `<div class="bubble-text">${esc(m.content)}${edited}</div>`
+    const textHtml = (!isAttachmentNameOnly && contentStr.trim() && m.messageType !== 'SYSTEM')
+      ? `<div class="bubble-text">${esc(contentStr)}${m.isEdited ? ' <span class="edited">(editado)</span>' : ''}</div>`
       : '';
 
     const reactions = (m.reactions && m.reactions.length)
       ? `<div class="msg-reactions">${m.reactions.map(r => `<span class="reaction-chip" title="${esc(r.user ? r.user.displayName : '')}">${esc(r.emoji)}</span>`).join('')}</div>`
       : '';
-    const edited = m.isEdited ? ' <span class="edited">(editado)</span>' : '';
+    const isChannel = state.activeChat && state.activeChat.kind === 'channel';
+
     return `${sep}
       <div class="msg ${mine ? 'out' : 'in'}">
         ${mine ? '' : avatarHtml(sender)}
         <div class="bubble ${isRecentlyReceived ? 'bubble-received-anim' : ''}">
-          ${state.activeChat.kind === 'channel' && !mine ? `<span class="bubble-sender">${esc(sender.displayName || 'Usuario')}</span>` : ''}
+          ${isChannel && !mine ? `<span class="bubble-sender">${esc(sender.displayName || 'Usuario')}</span>` : ''}
           ${textHtml}
           ${filesHtml}
           ${reactions}
